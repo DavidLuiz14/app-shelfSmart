@@ -23,6 +23,9 @@ class MainActivity : ComponentActivity() {
                     Greeting(
                         name = "Android",
                         modifier = Modifier.padding(innerPadding)
+
+
+
                     )
                 }
             }
@@ -36,12 +39,4 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
         text = "Hello $name!",
         modifier = modifier
     )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    AppShelfSmartTheme {
-        Greeting("Android")
-    }
 }
