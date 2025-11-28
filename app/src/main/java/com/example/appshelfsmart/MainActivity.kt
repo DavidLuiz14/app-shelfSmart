@@ -40,11 +40,3 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
         modifier = modifier
     )
 }
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    AppShelfSmartTheme {
-        Greeting("Android")
-    }
-}
