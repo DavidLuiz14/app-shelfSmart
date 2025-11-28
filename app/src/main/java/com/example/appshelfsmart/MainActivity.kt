@@ -44,3 +44,8 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 fun Hola(){
     
 }
+
+fun sum(a: Int, b: Int): Int {
+    return a + b
+}
+
