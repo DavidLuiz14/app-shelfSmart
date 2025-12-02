@@ -1,0 +1,231 @@
+package com.example.appshelfsmart.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.ImageAnalysis
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.example.appshelfsmart.camera.BarcodeAnalyzer
+import com.example.appshelfsmart.camera.CameraPreview
+import com.example.appshelfsmart.camera.TextRecognitionAnalyzer
+
+enum class ScanMode {
+    BARCODE, TEXT
+}
+
+@Composable
+fun ScanScreen(
+    onProductScanned: (String) -> Unit,
+    onDateScanned: (String, String?, String?, String?) -> Unit,
+    initialMode: ScanMode = ScanMode.BARCODE
+) {
+    val context = LocalContext.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { granted ->
+            hasCameraPermission = granted
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            launcher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    if (hasCameraPermission) {
+        ScanContent(
+            onProductScanned = onProductScanned,
+            onDateScanned = onDateScanned,
+            initialMode = initialMode
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Camera permission is required to scan products.")
+        }
+    }
+}
+
+@Composable
+fun ScanContent(
+    onProductScanned: (String) -> Unit,
+    onDateScanned: (String, String?, String?, String?) -> Unit,
+    initialMode: ScanMode = ScanMode.BARCODE
+) {
+    var scanMode by remember { mutableStateOf(initialMode) }
+    var lastScannedText by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    // Pause scanning after a successful scan to avoid multiple triggers
+    var isScanning by remember { mutableStateOf(true) }
+
+    val analyzer: ImageAnalysis.Analyzer = remember(scanMode, isScanning) {
+        if (!isScanning) {
+            ImageAnalysis.Analyzer { it.close() }
+        } else {
+            when (scanMode) {
+                ScanMode.BARCODE -> BarcodeAnalyzer { barcodes ->
+                    barcodes.firstOrNull()?.rawValue?.let { code ->
+                        if (isScanning) {
+                            isScanning = false
+                            lastScannedText = code
+                            onProductScanned(code)
+                        }
+                    }
+                }
+                ScanMode.TEXT -> TextRecognitionAnalyzer { text ->
+                    val rawText = text.text
+                    // Numeric dates: DD/MM/YYYY, MM/DD/YYYY, DD/MM/YY, MM/DD/YY
+                    // Matches: 1-2 digits, separator, 1-2 digits, separator, 2 or 4 digits
+                    val numericDatePattern = Regex("""\b\d{1,2}[/.-]\d{1,2}[/.-](\d{2}|\d{4})\b""")
+                    
+                    // ISO Date: YYYY-MM-DD
+                    val isoDatePattern = Regex("""\b\d{4}[/.-]\d{2}[/.-]\d{2}\b""")
+                    
+                    // MM/YYYY or MM-YYYY
+                    val monthYearPattern = Regex("""\b\d{1,2}[/.-]\d{4}\b""")
+
+                    // Alphanumeric dates (English and Spanish)
+                    // Matches: 03/Mar/26, 12 DEC 2025, 05-Ene-24
+                    // Supports English (JAN-DEC) and Spanish (ENE, ABR, AGO, DIC, etc.)
+                    val alphaMonthPattern = Regex(
+                        """\b\d{1,2}[/.\-\s]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|ENE|ABR|AGO|DIC)[a-z]*[/.\-\s]+(\d{2}|\d{4})\b""", 
+                        RegexOption.IGNORE_CASE
+                    )
+
+                    val patterns = listOf(numericDatePattern, isoDatePattern, alphaMonthPattern, monthYearPattern)
+                    
+                    var foundDate: String? = null
+                    for (pattern in patterns) {
+                        val match = pattern.find(rawText)
+                        if (match != null) {
+                            foundDate = match.value
+                            break
+                        }
+                    }
+
+                    // Extract Additional Info
+                    val weightPattern = Regex("""\b\d+(\.\d+)?\s*(g|kg|ml|L|oz|lb)\b""", RegexOption.IGNORE_CASE)
+                    val foundWeight = weightPattern.find(rawText)?.value
+
+                    val lotPattern = Regex("""\b(Lot|Lote|L:)\s*[A-Z0-9]+\b""", RegexOption.IGNORE_CASE)
+                    val foundLot = lotPattern.find(rawText)?.value
+
+                    val originPattern = Regex("""\b(Made in|Hecho en|Product of)\s+[A-Za-z\s]+\b""", RegexOption.IGNORE_CASE)
+                    val foundOrigin = originPattern.find(rawText)?.value
+
+                    if (foundDate != null && isScanning) {
+                        isScanning = false
+                        lastScannedText = foundDate
+                        onDateScanned(foundDate, foundWeight, foundLot, foundOrigin)
+                    }
+                }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        CameraPreview(
+            modifier = Modifier.fillMaxSize(),
+            analyzer = analyzer
+        )
+
+        // Overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.3f))
+        ) {
+            // Center Focus Area
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(0.8f)
+                    .height(200.dp)
+                    .background(Color.Transparent)
+                    .border(2.dp, Color.White, RoundedCornerShape(16.dp))
+            )
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (scanMode == ScanMode.BARCODE) "Scan Product Barcode" else "Scan Expiration Date",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(
+                        onClick = { 
+                            scanMode = ScanMode.BARCODE 
+                            isScanning = true
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (scanMode == ScanMode.BARCODE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    ) {
+                        Text("Barcode")
+                    }
+                    Button(
+                        onClick = { 
+                            scanMode = ScanMode.TEXT 
+                            isScanning = true
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (scanMode == ScanMode.TEXT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    ) {
+                        Text("Date")
+                    }
+                }
+            }
+        }
+    }
+}
