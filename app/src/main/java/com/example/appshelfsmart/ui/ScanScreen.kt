@@ -2,7 +2,6 @@ package com.example.appshelfsmart.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.ImageAnalysis
@@ -45,6 +44,8 @@ enum class ScanMode {
 fun ScanScreen(
     onProductScanned: (String) -> Unit,
     onDateScanned: (String, String?, String?, String?) -> Unit,
+    onManualEntry: () -> Unit,
+    onFinish: () -> Unit,
     initialMode: ScanMode = ScanMode.BARCODE
 ) {
     val context = LocalContext.current
@@ -74,6 +75,8 @@ fun ScanScreen(
         ScanContent(
             onProductScanned = onProductScanned,
             onDateScanned = onDateScanned,
+            onManualEntry = onManualEntry,
+            onFinish = onFinish,
             initialMode = initialMode
         )
     } else {
@@ -87,12 +90,13 @@ fun ScanScreen(
 fun ScanContent(
     onProductScanned: (String) -> Unit,
     onDateScanned: (String, String?, String?, String?) -> Unit,
+    onManualEntry: () -> Unit,
+    onFinish: () -> Unit,
     initialMode: ScanMode = ScanMode.BARCODE
 ) {
     var scanMode by remember { mutableStateOf(initialMode) }
     var lastScannedText by remember { mutableStateOf("") }
-    val context = LocalContext.current
-
+    
     // Pause scanning after a successful scan to avoid multiple triggers
     var isScanning by remember { mutableStateOf(true) }
 
@@ -113,7 +117,6 @@ fun ScanContent(
                 ScanMode.TEXT -> TextRecognitionAnalyzer { text ->
                     val rawText = text.text
                     // Numeric dates: DD/MM/YYYY, MM/DD/YYYY, DD/MM/YY, MM/DD/YY
-                    // Matches: 1-2 digits, separator, 1-2 digits, separator, 2 or 4 digits
                     val numericDatePattern = Regex("""\b\d{1,2}[/.-]\d{1,2}[/.-](\d{2}|\d{4})\b""")
                     
                     // ISO Date: YYYY-MM-DD
@@ -123,8 +126,6 @@ fun ScanContent(
                     val monthYearPattern = Regex("""\b\d{1,2}[/.-]\d{4}\b""")
 
                     // Alphanumeric dates (English and Spanish)
-                    // Matches: 03/Mar/26, 12 DEC 2025, 05-Ene-24
-                    // Supports English (JAN-DEC) and Spanish (ENE, ABR, AGO, DIC, etc.)
                     val alphaMonthPattern = Regex(
                         """\b\d{1,2}[/.\-\s]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|ENE|ABR|AGO|DIC)[a-z]*[/.\-\s]+(\d{2}|\d{4})\b""", 
                         RegexOption.IGNORE_CASE
@@ -141,20 +142,10 @@ fun ScanContent(
                         }
                     }
 
-                    // Extract Additional Info
-                    val weightPattern = Regex("""\b\d+(\.\d+)?\s*(g|kg|ml|L|oz|lb)\b""", RegexOption.IGNORE_CASE)
-                    val foundWeight = weightPattern.find(rawText)?.value
-
-                    val lotPattern = Regex("""\b(Lot|Lote|L:)\s*[A-Z0-9]+\b""", RegexOption.IGNORE_CASE)
-                    val foundLot = lotPattern.find(rawText)?.value
-
-                    val originPattern = Regex("""\b(Made in|Hecho en|Product of)\s+[A-Za-z\s]+\b""", RegexOption.IGNORE_CASE)
-                    val foundOrigin = originPattern.find(rawText)?.value
-
                     if (foundDate != null && isScanning) {
                         isScanning = false
                         lastScannedText = foundDate
-                        onDateScanned(foundDate, foundWeight, foundLot, foundOrigin)
+                        onDateScanned(foundDate, null, null, null)
                     }
                 }
             }
@@ -224,6 +215,22 @@ fun ScanContent(
                     ) {
                         Text("Date")
                     }
+                }
+                
+                Button(
+                    onClick = onManualEntry,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                ) {
+                    Text("Enter Manually")
+                }
+                
+                Button(
+                    onClick = onFinish,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text("Finish Registration")
                 }
             }
         }

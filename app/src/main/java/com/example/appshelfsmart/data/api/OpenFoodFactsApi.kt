@@ -19,5 +19,6 @@ data class OpenFoodFactsProduct(
     @SerializedName("brands") val brands: String?,
     @SerializedName("image_url") val imageUrl: String?,
     @SerializedName("quantity") val quantity: String?, // Often contains weight/volume
-    @SerializedName("origins") val origins: String?
+    @SerializedName("categories") val categories: String?,
+    @SerializedName("manufacturing_places") val manufacturingPlaces: String?
 )
