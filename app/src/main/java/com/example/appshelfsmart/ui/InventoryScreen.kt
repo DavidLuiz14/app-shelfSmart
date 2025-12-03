@@ -25,15 +25,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.appshelfsmart.data.Product
 
 @Composable
+
 fun InventoryScreen(
     onScanClick: () -> Unit,
     inventoryItems: List<Product>,
-    onEditClick: (Product) -> Unit,
     onDeleteClick: (Product) -> Unit
 ) {
+    var selectedProduct by remember { mutableStateOf<Product?>(null) }
+
+    if (selectedProduct != null) {
+        ProductDetailDialog(product = selectedProduct!!, onDismiss = { selectedProduct = null })
+    }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
@@ -69,7 +82,7 @@ fun InventoryScreen(
                     items(inventoryItems) { item ->
                         ProductCard(
                             product = item,
-                            onEdit = { onEditClick(item) },
+                            onView = { selectedProduct = item },
                             onDelete = { onDeleteClick(item) }
                         )
                     }
@@ -82,11 +95,11 @@ fun InventoryScreen(
 @Composable
 fun ProductCard(
     product: Product,
-    onEdit: () -> Unit,
+    onView: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onView() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -102,41 +115,24 @@ fun ProductCard(
                     modifier = Modifier.weight(1f)
                 )
                 Row {
-                    androidx.compose.material3.IconButton(onClick = onEdit) {
-                        Icon(androidx.compose.material.icons.Icons.Default.Edit, contentDescription = "Edit")
+                    androidx.compose.material3.IconButton(onClick = onView) {
+                        Icon(androidx.compose.material.icons.Icons.Default.Visibility, contentDescription = "View")
                     }
                     androidx.compose.material3.IconButton(onClick = onDelete) {
                         Icon(androidx.compose.material.icons.Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
-            if (product.weight.isNotBlank()) {
-                Text(
-                    text = "Weight: ${product.weight}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (product.brand.isNotBlank()) {
+                Text(text = "Brand: ${product.brand}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (product.lot.isNotBlank()) {
-                Text(
-                    text = "Lot: ${product.lot}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (product.origin.isNotBlank()) {
-                Text(
-                    text = "Origin: ${product.origin}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(text = "Units: ${product.units}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Exp: ${product.expirationDate}",
+                    text = "Expires: ${product.expirationDate}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -148,4 +144,44 @@ fun ProductCard(
             }
         }
     }
+}
+
+@Composable
+fun ProductDetailDialog(
+    product: Product,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = { Text(text = product.name) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (product.photoUri != null) {
+                    coil.compose.AsyncImage(
+                        model = product.photoUri,
+                        contentDescription = "Product Photo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .padding(bottom = 8.dp),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                }
+                Text("Brand: ${product.brand}")
+                Text("Category: ${product.category}")
+                Text("Quantity: ${product.quantityValue} ${product.quantityUnit}")
+                Text("Units: ${product.units}")
+                Text("Expiration: ${product.expirationDate}")
+                Text("Barcode: ${product.barcode}")
+                
+                val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
+                Text("Registered: ${dateFormat.format(java.util.Date(product.purchaseDate))}")
+            }
+        }
+    )
 }

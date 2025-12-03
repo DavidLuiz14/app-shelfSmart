@@ -21,13 +21,16 @@ class ProductRepository {
             val response = api.getProduct(barcode)
             if (response.status == 1 && response.product != null) {
                 val p = response.product
-                val name = if (!p.brands.isNullOrBlank()) "${p.brands} - ${p.productName ?: ""}" else p.productName ?: ""
+                val name = p.productName ?: ""
                 Product(
                     name = name,
                     barcode = barcode,
                     expirationDate = "", // API doesn't usually give expiration for specific item
-                    weight = p.quantity ?: "",
-                    origin = p.origins ?: ""
+                    brand = p.brands ?: "",
+                    manufacturer = p.manufacturingPlaces ?: "",
+                    category = p.categories?.split(",")?.firstOrNull()?.trim() ?: "",
+                    quantityUnit = p.quantity?.replace(Regex("[0-9.]"), "")?.trim() ?: "",
+                    quantityValue = p.quantity?.replace(Regex("[^0-9.]"), "")?.toDoubleOrNull() ?: 0.0
                 )
             } else {
                 null
