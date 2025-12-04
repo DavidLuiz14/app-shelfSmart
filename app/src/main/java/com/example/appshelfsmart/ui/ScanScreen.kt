@@ -35,10 +35,18 @@ import androidx.core.content.ContextCompat
 import com.example.appshelfsmart.camera.BarcodeAnalyzer
 import com.example.appshelfsmart.camera.CameraPreview
 import com.example.appshelfsmart.camera.TextRecognitionAnalyzer
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import android.net.Uri
 
 enum class ScanMode {
-    BARCODE, TEXT
+    BARCODE, TEXT, NUTRITION
 }
+
+
 
 @Composable
 fun ScanScreen(
@@ -94,14 +102,17 @@ fun ScanContent(
     onFinish: () -> Unit,
     initialMode: ScanMode = ScanMode.BARCODE
 ) {
+    val context = LocalContext.current
     var scanMode by remember { mutableStateOf(initialMode) }
     var lastScannedText by remember { mutableStateOf("") }
     
     // Pause scanning after a successful scan to avoid multiple triggers
     var isScanning by remember { mutableStateOf(true) }
+    
+    val imageCapture = remember { ImageCapture.Builder().build() }
 
     val analyzer: ImageAnalysis.Analyzer = remember(scanMode, isScanning) {
-        if (!isScanning) {
+        if (!isScanning && scanMode != ScanMode.NUTRITION) {
             ImageAnalysis.Analyzer { it.close() }
         } else {
             when (scanMode) {
@@ -148,6 +159,10 @@ fun ScanContent(
                         onDateScanned(foundDate, null, null, null)
                     }
                 }
+                ScanMode.NUTRITION -> ImageAnalysis.Analyzer { image ->
+                    // No-op for analysis in nutrition mode, we use ImageCapture
+                    image.close()
+                }
             }
         }
     }
@@ -155,7 +170,8 @@ fun ScanContent(
     Box(modifier = Modifier.fillMaxSize()) {
         CameraPreview(
             modifier = Modifier.fillMaxSize(),
-            analyzer = analyzer
+            analyzer = analyzer,
+            imageCapture = if (scanMode == ScanMode.NUTRITION) imageCapture else null
         )
 
         // Overlay
@@ -169,7 +185,7 @@ fun ScanContent(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth(0.8f)
-                    .height(200.dp)
+                    .height(if (scanMode == ScanMode.NUTRITION) 400.dp else 200.dp) // Taller for nutrition
                     .background(Color.Transparent)
                     .border(2.dp, Color.White, RoundedCornerShape(16.dp))
             )
@@ -184,53 +200,124 @@ fun ScanContent(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = if (scanMode == ScanMode.BARCODE) "Scan Product Barcode" else "Scan Expiration Date",
+                    text = when (scanMode) {
+                        ScanMode.BARCODE -> "Scan Product Barcode"
+                        ScanMode.TEXT -> "Scan Expiration Date"
+                        ScanMode.NUTRITION -> "Scan Nutrition Label"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                
+                if (scanMode == ScanMode.NUTRITION) {
+                    // Multi-shot logic
+                    val capturedCount = lastScannedText.split(",").filter { it.isNotBlank() }.size
+                    
+                    Text(
+                        text = if (capturedCount > 0) "$capturedCount photos taken" else "Take clear photos of the label (overlap if needed)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { 
+                                val photoFile = File(context.externalCacheDir, "nutrition_scan_${System.currentTimeMillis()}.jpg")
+                                val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+                                
+                                imageCapture.takePicture(
+                                    outputOptions,
+                                    ContextCompat.getMainExecutor(context),
+                                    object : ImageCapture.OnImageSavedCallback {
+                                        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                            val savedUri = Uri.fromFile(photoFile).toString()
+                                            // Append to list (comma separated)
+                                            lastScannedText = if (lastScannedText.isBlank()) savedUri else "$lastScannedText,$savedUri"
+                                        }
+                                        override fun onError(exc: ImageCaptureException) {
+                                            // Handle error
+                                        }
+                                    }
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Capture")
+                        }
+                        
+                        if (lastScannedText.isNotBlank()) {
+                            Button(
+                                onClick = {
+                                    // Finish and send all URIs
+                                    onDateScanned(lastScannedText, null, null, null)
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                            ) {
+                                Text("Analyze (${lastScannedText.split(",").size})")
+                            }
+                        }
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Button(
-                        onClick = { 
-                            scanMode = ScanMode.BARCODE 
-                            isScanning = true
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (scanMode == ScanMode.BARCODE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
-                        )
-                    ) {
-                        Text("Barcode")
-                    }
-                    Button(
-                        onClick = { 
-                            scanMode = ScanMode.TEXT 
-                            isScanning = true
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (scanMode == ScanMode.TEXT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
-                        )
-                    ) {
-                        Text("Date")
+                    if (initialMode != ScanMode.NUTRITION) {
+                        Button(
+                            onClick = { 
+                                scanMode = ScanMode.BARCODE 
+                                isScanning = true
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (scanMode == ScanMode.BARCODE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Text("Barcode")
+                        }
+                        Button(
+                            onClick = { 
+                                scanMode = ScanMode.TEXT 
+                                isScanning = true
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (scanMode == ScanMode.TEXT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Text("Date")
+                        }
                     }
                 }
                 
-                Button(
-                    onClick = onManualEntry,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-                ) {
-                    Text("Enter Manually")
-                }
-                
-                Button(
-                    onClick = onFinish,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    Text("Finish Registration")
+                if (scanMode != ScanMode.NUTRITION) {
+                    Button(
+                        onClick = onManualEntry,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                    ) {
+                        Text("Enter Manually")
+                    }
+                    
+                    Button(
+                        onClick = onFinish,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("Finish Registration")
+                    }
+                } else {
+                     Button(
+                        onClick = onFinish, 
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             }
         }

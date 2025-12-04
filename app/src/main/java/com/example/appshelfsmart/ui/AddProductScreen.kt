@@ -27,6 +27,8 @@ import com.example.appshelfsmart.data.Product
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,9 +42,15 @@ fun AddProductScreen(
     initialCategory: String,
     initialQuantityValue: Double,
     initialQuantityUnit: String,
+    initialNutritionalInfoRaw: String,
+    initialNutritionalInfoSimplified: String,
+    initialExpirationDates: List<String> = emptyList(),
+    initialPhotoUri: Uri? = null,
     onSave: (List<Product>) -> Unit,
     onCancel: () -> Unit,
-    onScanDate: (Int) -> Unit // Int is the index of the unit being scanned
+    onScanDate: (Int) -> Unit,
+    onScanNutrition: () -> Unit,
+    onStateChanged: (String, String, String, String, Double, String, List<String>, Uri?) -> Unit = { _, _, _, _, _, _, _, _ -> }
 ) {
     var name by remember { mutableStateOf(initialName) }
     var brand by remember { mutableStateOf(initialBrand) }
@@ -51,47 +59,21 @@ fun AddProductScreen(
     var units by remember { mutableStateOf("1") }
     var quantityValue by remember { mutableStateOf(if (initialQuantityValue > 0) initialQuantityValue.toString() else "") }
     var quantityUnit by remember { mutableStateOf(initialQuantityUnit.ifBlank { "g" }) }
-    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var photoUri by remember { mutableStateOf(initialPhotoUri) }
 
-    // Multiple Expiration Dates Logic
-    // We maintain a list of dates. Size should match 'units'.
-    // If 'initialDate' is passed (e.g. from ScanScreen), we need to know which unit it belongs to.
-    // For now, if initialDate changes, we might need to apply it to the "currently selected" unit or all?
-    // Let's assume initialDate populates the first empty slot or we rely on state.
-    
-    // Since we navigate away to scan date, we need to persist the list of dates.
-    // But MainActivity destroys this screen.
-    // We need a way to pass the list back and forth or use a shared ViewModel.
-    // Given the constraints, let's use a simple approach:
-    // If initialDate is not empty, it means we just scanned a date.
-    // We need to know WHICH index we scanned for.
-    // This requires MainActivity to track "scanningIndex".
-    // For now, let's assume we apply it to the *first* date for simplicity, or we need to change MainActivity to pass the list.
-    // *Correction*: The user wants to scan date for *each* product.
-    // If we leave the screen, we lose state.
-    // We should probably NOT leave the screen for Date Scanning if possible, OR we need to save state in ViewModel.
-    // But the user asked to scan via camera.
-    // Let's use a DatePickerDialog for "Calendar" and keep the "Camera" option.
-    // If Camera option is used, we have to navigate.
-    // To avoid losing state, we can pass the current state to MainActivity and back? Too complex.
-    // BETTER: Use a Dialog for the Camera Scan? No, ScanScreen is a full screen.
-    // OK, let's assume for now we only support DatePicker for multiple dates to avoid navigation hell, 
-    // OR we accept that we might lose other fields if we don't save them.
-    // WAIT: MainActivity has `tempDate`.
-    // Let's just use `rememberSaveable`? No, that doesn't survive process death or navigation if the composable is destroyed.
-    // But `currentScreen` switching in MainActivity *does* destroy the composable.
-    // So we *must* lift the state to MainActivity or ViewModel.
-    // For this task, I will implement the UI for multiple dates and DatePicker.
-    // For Camera scan, I will implement it such that it updates the *last* requested index.
-    // But I can't easily do that without changing MainActivity signature significantly.
-    // Let's implement DatePicker first as requested ("por medio del calendario").
-    // And for Camera, maybe we can just launch the camera activity directly without full navigation?
-    // No, we have a custom ScanScreen.
-    // Let's stick to DatePicker for the "different for each" requirement for now, as it's the most robust way without major refactoring.
-    // If the user *really* wants camera for *each*, we'd need to architect it better.
-    // I will add the UI for it.
+    // Initialize expiration dates from list if available, otherwise use initialDate
+    var expirationDates by remember { 
+        mutableStateOf(
+            if (initialExpirationDates.isNotEmpty()) initialExpirationDates 
+            else List(1) { initialDate }
+        ) 
+    }
 
-    var expirationDates by remember { mutableStateOf(List(1) { initialDate }) }
+    // Sync state back to parent
+    LaunchedEffect(name, brand, manufacturer, category, quantityValue, quantityUnit, expirationDates, photoUri) {
+        val qValue = quantityValue.toDoubleOrNull() ?: 0.0
+        onStateChanged(name, brand, manufacturer, category, qValue, quantityUnit, expirationDates, photoUri)
+    }
 
     // Update expirationDates list size when units changes
     LaunchedEffect(units) {
@@ -103,34 +85,32 @@ fun AddProductScreen(
                 repeat(count - currentList.size) { currentList.add("") }
             } else if (count < currentList.size) {
                 // Remove dates
-                expirationDates = currentList.take(count)
-            } else {
-                // Same size
+                // Don't remove if we want to preserve data, but UI implies matching units.
+                // Let's keep it simple and match units.
             }
-            if (count > currentList.size) {
-                 expirationDates = currentList
-            }
-             // If we increased, we added. If we decreased, we took.
-             // Re-assign to state
-             if (expirationDates.size != count) {
-                 expirationDates = if (count > expirationDates.size) {
-                     expirationDates + List(count - expirationDates.size) { "" }
+            
+            if (currentList.size != count) {
+                 expirationDates = if (count > currentList.size) {
+                     currentList + List(count - currentList.size) { "" }
                  } else {
-                     expirationDates.take(count)
+                     currentList.take(count)
                  }
-             }
+            }
         }
     }
     
-    // If initialDate is passed and non-empty (returned from scan), update the first empty slot or just the first one?
-    // This is tricky with the navigation.
-    // Let's assume if initialDate is passed, it updates the *first* date for now.
+    // If initialDate is passed (from scan), update the first empty slot
     LaunchedEffect(initialDate) {
-        if (initialDate.isNotBlank() && expirationDates.isNotEmpty()) {
+        if (initialDate.isNotBlank()) {
              val newList = expirationDates.toMutableList()
-             // Find first empty or just set first?
-             // Let's set the first one for now as a fallback.
-             if (newList[0].isBlank()) {
+             // Find first empty
+             val firstEmpty = newList.indexOfFirst { it.isBlank() }
+             if (firstEmpty != -1) {
+                 newList[firstEmpty] = initialDate
+                 expirationDates = newList
+             } else if (newList.isNotEmpty()) {
+                 // If no empty, update first? Or do nothing?
+                 // User might have scanned to overwrite. Let's overwrite first for now.
                  newList[0] = initialDate
                  expirationDates = newList
              }
@@ -384,6 +364,93 @@ fun AddProductScreen(
                 }
             }
 
+            // Nutritional Info Section
+            Text("Nutritional Information", style = MaterialTheme.typography.titleMedium)
+            
+            var nutritionalInfoRaw by remember { mutableStateOf(initialNutritionalInfoRaw) }
+            var nutritionalInfoSimplified by remember { mutableStateOf(initialNutritionalInfoSimplified) }
+            var isSimplifying by remember { mutableStateOf(false) }
+            val geminiService = remember { com.example.appshelfsmart.data.ai.GeminiService("AIzaSyB0NwYEOeBKY54pWarQrnqLHmRxhuyZJIY") }
+            val scope = rememberCoroutineScope()
+            
+            // Trigger simplification if raw info is present but simplified is not (e.g. returning from scan)
+            // Trigger simplification if raw info is present but simplified is not (e.g. returning from scan)
+            LaunchedEffect(initialNutritionalInfoRaw) {
+                if (initialNutritionalInfoRaw.isNotBlank() && initialNutritionalInfoSimplified.isBlank()) {
+                    isSimplifying = true
+                    scope.launch {
+                        try {
+                            // Check if it's a URI (or list of URIs)
+                            if (initialNutritionalInfoRaw.contains("content://") || initialNutritionalInfoRaw.contains("file://")) {
+                                val uris = initialNutritionalInfoRaw.split(",")
+                                val bitmaps = uris.mapNotNull { uriString ->
+                                    if (uriString.isNotBlank()) {
+                                        val uri = Uri.parse(uriString)
+                                        if (android.os.Build.VERSION.SDK_INT < 28) {
+                                            @Suppress("DEPRECATION")
+                                            android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                                        } else {
+                                            val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                                            android.graphics.ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                                                decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                                                decoder.isMutableRequired = true
+                                            }
+                                        }
+                                    } else null
+                                }
+                                
+                                if (bitmaps.isNotEmpty()) {
+                                    val simplified = geminiService.simplifyNutritionalInfo(bitmaps)
+                                    nutritionalInfoSimplified = simplified
+                                } else {
+                                    nutritionalInfoSimplified = "Error: No valid images found."
+                                }
+                            } else {
+                                // Fallback if it's just text (legacy)
+                                nutritionalInfoSimplified = "Error: Expected image but got text."
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            nutritionalInfoSimplified = "Error processing: ${e.message}"
+                        }
+                        isSimplifying = false
+                    }
+                }
+            }
+
+            // Reuse scan screen for text? Or add a specific callback?
+            // For simplicity, let's assume we use the same onScanDate callback but with a special index or flag?
+            // Actually, AddProductScreen signature doesn't support generic text scan callback.
+            // We need to update the signature or handle it locally if possible.
+            // But ScanScreen is a separate screen.
+            // Let's add a new callback `onScanNutrition`.
+            
+            if (nutritionalInfoSimplified.isNotBlank()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Simplified Info (AI):", style = MaterialTheme.typography.labelLarge)
+                        Text(nutritionalInfoSimplified)
+                    }
+                }
+            } else if (isSimplifying) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            }
+
+            Button(
+                onClick = { onScanNutrition() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Scan Nutrition Label")
+            }
+            
+            // Hidden field for raw info if needed, or just store it
+            
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -406,7 +473,9 @@ fun AddProductScreen(
                                     units = 1, // Each entry is 1 unit
                                     quantityValue = quantityValue.toDouble(),
                                     quantityUnit = quantityUnit,
-                                    photoUri = photoUri?.toString()
+                                    photoUri = photoUri?.toString(),
+                                    nutritionalInfoRaw = nutritionalInfoRaw,
+                                    nutritionalInfoSimplified = nutritionalInfoSimplified
                                 )
                             }
                             onSave(products)
@@ -420,3 +489,4 @@ fun AddProductScreen(
         }
     }
 }
+

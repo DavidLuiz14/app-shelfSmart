@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.HorizontalDivider
 import com.example.appshelfsmart.data.Product
 
 @Composable
@@ -181,6 +182,12 @@ fun ProductDetailDialog(
                 
                 val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
                 Text("Registered: ${dateFormat.format(java.util.Date(product.purchaseDate))}")
+                
+                if (!product.nutritionalInfoSimplified.isNullOrBlank()) {
+                    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text("Nutritional Info (Simplified):", style = MaterialTheme.typography.labelLarge)
+                    Text(product.nutritionalInfoSimplified)
+                }
             }
         }
     )
