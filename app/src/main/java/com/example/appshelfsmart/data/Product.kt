@@ -14,5 +14,7 @@ data class Product(
     val quantityValue: Double? = null,
     val quantityUnit: String? = null, // e.g., "ml", "g", "kg"
     val photoUri: String? = null,
-    val purchaseDate: Long = System.currentTimeMillis()
+    val purchaseDate: Long = System.currentTimeMillis(),
+    val nutritionalInfoRaw: String? = null,
+    val nutritionalInfoSimplified: String? = null
 )

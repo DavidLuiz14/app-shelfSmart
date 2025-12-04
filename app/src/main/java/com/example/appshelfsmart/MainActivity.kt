@@ -50,12 +50,16 @@ class MainActivity : ComponentActivity() {
                     var tempCategory by remember { mutableStateOf("") }
                     var tempQuantityUnit by remember { mutableStateOf("") }
                     var tempQuantityValue by remember { mutableStateOf(0.0) }
+                    var tempNutritionalInfoRaw by remember { mutableStateOf("") }
+                    var tempNutritionalInfoSimplified by remember { mutableStateOf("") }
+                    var tempExpirationDates by remember { mutableStateOf(listOf<String>()) }
+                    var tempPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
                     
                     // Navigation Logic
                     BackHandler(enabled = currentScreen != "main_menu") {
                         when (currentScreen) {
                             "inventory", "scan_barcode", "recipes", "settings" -> currentScreen = "main_menu"
-                            "scan_date" -> currentScreen = "add_product" // Return to add product
+                            "scan_date", "scan_nutrition" -> currentScreen = "add_product" // Return to add product
                             "add_product" -> {
                                 if (tempId != null) {
                                     currentScreen = "inventory"
@@ -66,6 +70,8 @@ class MainActivity : ComponentActivity() {
                                 // Reset temp fields
                                 tempBarcode = ""
                                 tempDate = ""
+                                tempNutritionalInfoRaw = ""
+                                tempNutritionalInfoSimplified = ""
                             }
                             else -> currentScreen = "main_menu"
                         }
@@ -83,6 +89,8 @@ class MainActivity : ComponentActivity() {
                                 tempCategory = ""
                                 tempQuantityUnit = ""
                                 tempQuantityValue = 0.0
+                                tempNutritionalInfoRaw = ""
+                                tempNutritionalInfoSimplified = ""
                                 currentScreen = "scan_barcode" 
                             },
                             onNavigateToInventory = { currentScreen = "inventory" },
@@ -100,6 +108,8 @@ class MainActivity : ComponentActivity() {
                                 tempCategory = ""
                                 tempQuantityUnit = ""
                                 tempQuantityValue = 0.0
+                                tempNutritionalInfoRaw = ""
+                                tempNutritionalInfoSimplified = ""
                                 currentScreen = "scan_barcode" 
                             },
                             inventoryItems = viewModel.inventoryItems,
@@ -145,6 +155,23 @@ class MainActivity : ComponentActivity() {
                             onFinish = { currentScreen = "inventory" },
                             initialMode = ScanMode.TEXT
                         )
+                        "scan_nutrition" -> ScanScreen(
+                            onProductScanned = { },
+                            onDateScanned = { text, _, _, _ ->
+                                // We use onDateScanned callback but it returns text. 
+                                // Ideally we should have a generic onTextScanned. 
+                                // But for now, let's use the first parameter as the raw text.
+                                // Wait, ScanScreen's TextRecognitionAnalyzer filters for dates.
+                                // We need to update ScanScreen to support generic text scanning or just use what we have.
+                                // The TextRecognitionAnalyzer logic is specific to dates.
+                                // I need to update ScanScreen to allow raw text return.
+                                tempNutritionalInfoRaw = text 
+                                currentScreen = "add_product" 
+                            },
+                            onManualEntry = { currentScreen = "add_product" },
+                            onFinish = { currentScreen = "inventory" },
+                            initialMode = ScanMode.NUTRITION
+                        )
                         "add_product" -> AddProductScreen(
                             productId = tempId,
                             initialBarcode = tempBarcode,
@@ -155,6 +182,10 @@ class MainActivity : ComponentActivity() {
                             initialCategory = tempCategory,
                             initialQuantityValue = tempQuantityValue,
                             initialQuantityUnit = tempQuantityUnit,
+                            initialNutritionalInfoRaw = tempNutritionalInfoRaw,
+                            initialNutritionalInfoSimplified = tempNutritionalInfoSimplified,
+                            initialExpirationDates = tempExpirationDates,
+                            initialPhotoUri = tempPhotoUri,
                             onSave = { productList ->
                                 productList.forEach { product ->
                                     if (tempId != null) {
@@ -177,6 +208,10 @@ class MainActivity : ComponentActivity() {
                                     tempCategory = ""
                                     tempQuantityUnit = ""
                                     tempQuantityValue = 0.0
+                                    tempNutritionalInfoRaw = ""
+                                    tempNutritionalInfoSimplified = ""
+                                    tempExpirationDates = emptyList()
+                                    tempPhotoUri = null
                                     currentScreen = "scan_barcode"
                                 }
                             },
@@ -185,6 +220,19 @@ class MainActivity : ComponentActivity() {
                             }, 
                             onScanDate = { 
                                 currentScreen = "scan_date" 
+                            },
+                            onScanNutrition = {
+                                currentScreen = "scan_nutrition"
+                            },
+                            onStateChanged = { name, brand, manufacturer, category, qtyVal, qtyUnit, dates, photo ->
+                                tempName = name
+                                tempBrand = brand
+                                tempManufacturer = manufacturer
+                                tempCategory = category
+                                tempQuantityValue = qtyVal
+                                tempQuantityUnit = qtyUnit
+                                tempExpirationDates = dates
+                                tempPhotoUri = photo
                             }
                         )
                     }
