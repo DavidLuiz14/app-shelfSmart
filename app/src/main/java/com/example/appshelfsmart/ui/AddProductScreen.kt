@@ -195,25 +195,61 @@ fun AddProductScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Photo Section
-            Box(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .padding(bottom = 8.dp),
-                contentAlignment = Alignment.Center
+                    .clickable { takePhoto() },
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                if (photoUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(photoUri),
-                        contentDescription = "Product Photo",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Button(onClick = { takePhoto() }) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Take Photo")
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (photoUri != null) {
+                        Image(
+                            painter = rememberAsyncImagePainter(photoUri),
+                            contentDescription = "Product Photo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        // Overlay button to retake photo
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp),
+                            contentAlignment = Alignment.BottomEnd
+                        ) {
+                            FloatingActionButton(
+                                onClick = { takePhoto() },
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CameraAlt, 
+                                    contentDescription = "Retake Photo",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Tap to Take Photo",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
@@ -245,7 +281,15 @@ fun AddProductScreen(
 
             // Category Dropdown
             var categoryExpanded by remember { mutableStateOf(false) }
-            val categories = listOf("Agua", "Refresco", "Jugo", "Verdura", "Fruta", "Legumbres", "Lácteos", "Carnes", "Panadería", "Otros")
+            val categories = listOf(
+                "Lácteos y derivados",
+                "Carnes y pescados",
+                "Frutas Verduras Granos y cereales",
+                "Bebidas Condimentos y especias",
+                "Snacks y dulces",
+                "Productos de limpieza",
+                "Otros"
+            )
             ExposedDropdownMenuBox(
                 expanded = categoryExpanded,
                 onExpandedChange = { categoryExpanded = !categoryExpanded },
@@ -370,7 +414,7 @@ fun AddProductScreen(
             var nutritionalInfoRaw by remember { mutableStateOf(initialNutritionalInfoRaw) }
             var nutritionalInfoSimplified by remember { mutableStateOf(initialNutritionalInfoSimplified) }
             var isSimplifying by remember { mutableStateOf(false) }
-            val geminiService = remember { com.example.appshelfsmart.data.ai.GeminiService("AIzaSyB0NwYEOeBKY54pWarQrnqLHmRxhuyZJIY") }
+            val geminiService = remember { com.example.appshelfsmart.data.ai.GeminiService(com.example.appshelfsmart.BuildConfig.GEMINI_API_KEY) }
             val scope = rememberCoroutineScope()
             
             // Trigger simplification if raw info is present but simplified is not (e.g. returning from scan)

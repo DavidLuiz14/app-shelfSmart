@@ -25,6 +25,7 @@ import com.example.appshelfsmart.viewmodel.ProductViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.appshelfsmart.data.repository.ProductRepository
+import com.example.appshelfsmart.ui.AlertsScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -58,7 +59,7 @@ class MainActivity : ComponentActivity() {
                     // Navigation Logic
                     BackHandler(enabled = currentScreen != "main_menu") {
                         when (currentScreen) {
-                            "inventory", "scan_barcode", "recipes", "settings" -> currentScreen = "main_menu"
+                            "inventory", "scan_barcode", "recipes", "settings", "alerts" -> currentScreen = "main_menu"
                             "scan_date", "scan_nutrition" -> currentScreen = "add_product" // Return to add product
                             "add_product" -> {
                                 if (tempId != null) {
@@ -94,8 +95,10 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = "scan_barcode" 
                             },
                             onNavigateToInventory = { currentScreen = "inventory" },
+                            onNavigateToAlerts = { currentScreen = "alerts" },
                             onNavigateToRecipes = { /* TODO */ },
-                            onNavigateToSettings = { /* TODO */ }
+                            onNavigateToSettings = { /* TODO */ },
+                            alertsCount = viewModel.getTotalAlertsCount()
                         )
                         "inventory" -> InventoryScreen(
                             onScanClick = { 
@@ -113,9 +116,13 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = "scan_barcode" 
                             },
                             inventoryItems = viewModel.inventoryItems,
+                            totalProducts = viewModel.totalProductsCount,
+                            expiringSoonCount = viewModel.getExpiringSoonProducts().size,
+                            lowStockCount = viewModel.getLowStockProducts().size,
                             onDeleteClick = { product ->
                                 viewModel.removeProduct(product)
-                            }
+                            },
+                            viewModel = viewModel
                         )
                         "scan_barcode" -> ScanScreen(
                             onProductScanned = { barcode ->
@@ -234,6 +241,17 @@ class MainActivity : ComponentActivity() {
                                 tempExpirationDates = dates
                                 tempPhotoUri = photo
                             }
+                        )
+                        "alerts" -> AlertsScreen(
+                            urgentAlerts = viewModel.getUrgentExpirationAlerts(),
+                            warningAlerts = viewModel.getWarningExpirationAlerts(),
+                            cautionAlerts = viewModel.getCautionExpirationAlerts(),
+                            lowStockAlerts = viewModel.getLowStockProducts(),
+                            onProductClick = { product ->
+                                // Navigate to product details or inventory
+                                currentScreen = "inventory"
+                            },
+                            onBack = { currentScreen = "main_menu" }
                         )
                     }
                 }
