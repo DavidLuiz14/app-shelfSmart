@@ -2,6 +2,7 @@ package com.example.appshelfsmart.data.repository
 
 import com.example.appshelfsmart.data.Product
 import com.example.appshelfsmart.data.api.OpenFoodFactsApi
+import com.example.appshelfsmart.utils.CategoryMapper
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
@@ -28,7 +29,8 @@ class ProductRepository {
                     expirationDate = "", // API doesn't usually give expiration for specific item
                     brand = p.brands ?: "",
                     manufacturer = p.manufacturingPlaces ?: "",
-                    category = p.categories?.split(",")?.firstOrNull()?.trim() ?: "",
+                    category = CategoryMapper.mapCategory(p.categories, name),
+
                     quantityUnit = p.quantity?.replace(Regex("[0-9.]"), "")?.trim() ?: "",
                     quantityValue = p.quantity?.replace(Regex("[^0-9.]"), "")?.toDoubleOrNull() ?: 0.0
                 )

@@ -113,9 +113,13 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = "scan_barcode" 
                             },
                             inventoryItems = viewModel.inventoryItems,
+                            totalProducts = viewModel.totalProductsCount,
+                            expiringSoonCount = viewModel.getExpiringSoonProducts().size,
+                            lowStockCount = viewModel.getLowStockProducts().size,
                             onDeleteClick = { product ->
                                 viewModel.removeProduct(product)
-                            }
+                            },
+                            viewModel = viewModel
                         )
                         "scan_barcode" -> ScanScreen(
                             onProductScanned = { barcode ->
