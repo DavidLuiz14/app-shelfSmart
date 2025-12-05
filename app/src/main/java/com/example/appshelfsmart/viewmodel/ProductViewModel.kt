@@ -48,6 +48,33 @@ import com.example.appshelfsmart.utils.DateUtils
             }
         }
 
+        // Alert system functions
+        fun getUrgentExpirationAlerts(): List<Product> {
+            return _inventoryItems.filter { product ->
+                DateUtils.isExpiringToday(product.expirationDate)
+            }
+        }
+
+        fun getWarningExpirationAlerts(): List<Product> {
+            return _inventoryItems.filter { product ->
+                DateUtils.isExpiringIn1to3Days(product.expirationDate)
+            }
+        }
+
+        fun getCautionExpirationAlerts(): List<Product> {
+            return _inventoryItems.filter { product ->
+                DateUtils.isExpiringIn4to7Days(product.expirationDate)
+            }
+        }
+
+        fun getTotalAlertsCount(): Int {
+            val expirationAlerts = getUrgentExpirationAlerts().size +
+                    getWarningExpirationAlerts().size +
+                    getCautionExpirationAlerts().size
+            val lowStockAlerts = getLowStockProducts().size
+            return expirationAlerts + lowStockAlerts
+        }
+
         // Sort functions
         fun sortByPurchaseDate(products: List<Product>, ascending: Boolean = false): List<Product> {
             return if (ascending) {

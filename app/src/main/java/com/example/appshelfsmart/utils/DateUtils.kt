@@ -97,4 +97,43 @@ object DateUtils {
     fun formatDate(timestamp: Long): String {
         return dateFormat.format(Date(timestamp))
     }
+
+    /**
+     * Check if a product expires today
+     */
+    fun isExpiringToday(expirationDate: String): Boolean {
+        val date = parseDate(expirationDate) ?: return false
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        
+        val expCal = Calendar.getInstance().apply {
+            time = date
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        
+        return expCal.timeInMillis == today.timeInMillis
+    }
+
+    /**
+     * Check if a product expires in 1-3 days
+     */
+    fun isExpiringIn1to3Days(expirationDate: String): Boolean {
+        val days = daysBetween(expirationDate)
+        return days in 1..3
+    }
+
+    /**
+     * Check if a product expires in 4-7 days
+     */
+    fun isExpiringIn4to7Days(expirationDate: String): Boolean {
+        val days = daysBetween(expirationDate)
+        return days in 4..7
+    }
 }
