@@ -1,139 +1,144 @@
 package com.example.appshelfsmart.viewmodel
 
-import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.appshelfsmart.data.Product
+import com.example.appshelfsmart.data.dao.ProductDao
 import com.example.appshelfsmart.utils.DateUtils
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-    class ProductViewModel : ViewModel() {
-        private val _inventoryItems = mutableStateListOf<Product>()
-        val inventoryItems: List<Product> get() = _inventoryItems
-
-        // Statistics
-        val totalProductsCount: Int
-            get() = _inventoryItems.sumOf { it.units }
-
-        fun getExpiringSoonProducts(days: Int = 7): List<Product> {
-            return _inventoryItems.filter { product ->
-                DateUtils.isExpiringSoon(product.expirationDate, days)
+class ProductViewModel(private val productDao: ProductDao) : ViewModel() {
+    
+    // Reactive data from database
+    val inventoryItems: StateFlow<List<Product>> = productDao.getAllProducts()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    
+    // Statistics
+    val totalProductsCount: Int
+        get() = inventoryItems.value.sumOf { it.units }
+    
+    fun getExpiringSoonProducts(days: Int = 7): List<Product> {
+        return inventoryItems.value.filter { product ->
+            DateUtils.isExpiringSoon(product.expirationDate, days)
+        }
+    }
+    
+    fun getLowStockProducts(threshold: Int = 2): List<Product> {
+        return inventoryItems.value.filter { it.units <= threshold }
+    }
+    
+    // Search functionality
+    fun searchProducts(query: String): List<Product> {
+        if (query.isBlank()) return inventoryItems.value
+        val lowerQuery = query.lowercase()
+        return inventoryItems.value.filter { product ->
+            product.name.lowercase().contains(lowerQuery) ||
+            product.brand.lowercase().contains(lowerQuery) ||
+            product.category.lowercase().contains(lowerQuery)
+        }
+    }
+    
+    // Filter by expiration status
+    fun filterByExpirationStatus(status: String): List<Product> {
+        return when (status) {
+            "All" -> inventoryItems.value
+            "Expiring Soon" -> inventoryItems.value.filter { 
+                DateUtils.isExpiringSoon(it.expirationDate, 7) && !DateUtils.isExpired(it.expirationDate)
             }
-        }
-
-        fun getLowStockProducts(threshold: Int = 2): List<Product> {
-            return _inventoryItems.filter { it.units <= threshold }
-        }
-
-        // Search functionality
-        fun searchProducts(query: String): List<Product> {
-            if (query.isBlank()) return _inventoryItems
-            val lowerQuery = query.lowercase()
-            return _inventoryItems.filter { product ->
-                product.name.lowercase().contains(lowerQuery) ||
-                product.brand.lowercase().contains(lowerQuery) ||
-                product.category.lowercase().contains(lowerQuery)
+            "Expired" -> inventoryItems.value.filter { DateUtils.isExpired(it.expirationDate) }
+            "Valid" -> inventoryItems.value.filter { 
+                !DateUtils.isExpiringSoon(it.expirationDate, 7) && !DateUtils.isExpired(it.expirationDate)
             }
+            else -> inventoryItems.value
         }
-
-        // Filter by expiration status
-        fun getExpiredProducts(): List<Product> {
-            return _inventoryItems.filter { product ->
-                DateUtils.isExpired(product.expirationDate)
-            }
+    }
+    
+    // Filter by category
+    fun filterByCategory(category: String): List<Product> {
+        if (category == "All") return inventoryItems.value
+        return inventoryItems.value.filter { it.category == category }
+    }
+    
+    // Sort functionality
+    fun sortProducts(products: List<Product>, sortBy: String): List<Product> {
+        return when (sortBy) {
+            "Newest" -> products.sortedByDescending { it.purchaseDate }
+            "Oldest" -> products.sortedBy { it.purchaseDate }
+            "Expiring Soonest" -> products.sortedBy { DateUtils.parseDate(it.expirationDate)?.time ?: Long.MAX_VALUE }
+            else -> products
         }
-
-        fun getValidProducts(days: Int = 7): List<Product> {
-            return _inventoryItems.filter { product ->
-                !DateUtils.isExpired(product.expirationDate) &&
-                !DateUtils.isExpiringSoon(product.expirationDate, days)
-            }
+    }
+    
+    // Alert functions
+    fun getUrgentExpirationAlerts(): List<Product> {
+        return inventoryItems.value.filter { DateUtils.isExpiringToday(it.expirationDate) }
+    }
+    
+    fun getWarningExpirationAlerts(): List<Product> {
+        return inventoryItems.value.filter { DateUtils.isExpiringIn1to3Days(it.expirationDate) }
+    }
+    
+    fun getCautionExpirationAlerts(): List<Product> {
+        return inventoryItems.value.filter { DateUtils.isExpiringIn4to7Days(it.expirationDate) }
+    }
+    
+    fun getTotalAlertsCount(): Int {
+        val urgentCount = getUrgentExpirationAlerts().size
+        val warningCount = getWarningExpirationAlerts().size
+        val cautionCount = getCautionExpirationAlerts().size
+        val lowStockCount = getLowStockProducts().size
+        return urgentCount + warningCount + cautionCount + lowStockCount
+    }
+    
+    // CRUD operations
+    fun addProduct(product: Product) {
+        viewModelScope.launch {
+            productDao.insertProduct(product)
         }
-
-        // Alert system functions
-        fun getUrgentExpirationAlerts(): List<Product> {
-            return _inventoryItems.filter { product ->
-                DateUtils.isExpiringToday(product.expirationDate)
-            }
+    }
+    
+    fun updateProduct(product: Product) {
+        viewModelScope.launch {
+            productDao.updateProduct(product)
         }
-
-        fun getWarningExpirationAlerts(): List<Product> {
-            return _inventoryItems.filter { product ->
-                DateUtils.isExpiringIn1to3Days(product.expirationDate)
-            }
+    }
+    
+    fun deleteProduct(product: Product) {
+        viewModelScope.launch {
+            productDao.deleteProduct(product)
         }
-
-        fun getCautionExpirationAlerts(): List<Product> {
-            return _inventoryItems.filter { product ->
-                DateUtils.isExpiringIn4to7Days(product.expirationDate)
-            }
-        }
-
-        fun getTotalAlertsCount(): Int {
-            val expirationAlerts = getUrgentExpirationAlerts().size +
-                    getWarningExpirationAlerts().size +
-                    getCautionExpirationAlerts().size
-            val lowStockAlerts = getLowStockProducts().size
-            return expirationAlerts + lowStockAlerts
-        }
-
-        // Sort functions
-        fun sortByPurchaseDate(products: List<Product>, ascending: Boolean = false): List<Product> {
-            return if (ascending) {
-                products.sortedBy { it.purchaseDate }
-            } else {
-                products.sortedByDescending { it.purchaseDate }
-            }
-        }
-
-        fun sortByExpirationDate(products: List<Product>): List<Product> {
-            return products.sortedBy { product ->
-                DateUtils.parseDate(product.expirationDate)?.time ?: Long.MAX_VALUE
-            }
-        }
-
-        // Consumption tracking
-        fun markAsConsumed(product: Product) {
+    }
+    
+    fun markAsConsumed(product: Product) {
+        viewModelScope.launch {
             if (product.units > 1) {
+                // Decrease units
                 val updatedProduct = product.copy(units = product.units - 1)
-                updateProduct(updatedProduct)
+                productDao.updateProduct(updatedProduct)
             } else {
-                removeProduct(product)
-            }
-        }
-
-        fun markAsWasted(product: Product) {
-            if (product.units > 1) {
-                val updatedProduct = product.copy(units = product.units - 1)
-                updateProduct(updatedProduct)
-            } else {
-                removeProduct(product)
-            }
-        }
-
-        fun addProduct(product: Product) {
-            // Check if product with same barcode and expiration date exists
-            val existingProduct = _inventoryItems.find {
-                it.barcode == product.barcode && it.expirationDate == product.expirationDate
-            }
-
-            if (existingProduct != null) {
-                // Update units if exists
-                val updatedProduct =
-                    existingProduct.copy(units = existingProduct.units + product.units)
-                updateProduct(updatedProduct)
-            } else {
-                _inventoryItems.add(product)
-            }
-        }
-
-        fun removeProduct(product: Product) {
-            _inventoryItems.remove(product)
-        }
-
-        fun updateProduct(product: Product) {
-            val index = _inventoryItems.indexOfFirst { it.id == product.id }
-            if (index != -1) {
-                _inventoryItems[index] = product
+                // Remove product
+                productDao.deleteProduct(product)
             }
         }
     }
-
+    
+    fun markAsWasted(product: Product) {
+        viewModelScope.launch {
+            if (product.units > 1) {
+                // Decrease units
+                val updatedProduct = product.copy(units = product.units - 1)
+                productDao.updateProduct(updatedProduct)
+            } else {
+                // Remove product
+                productDao.deleteProduct(product)
+            }
+        }
+    }
+    
+    fun getProductById(id: String): Product? {
+        return inventoryItems.value.find { it.id == id }
+    }
+}
