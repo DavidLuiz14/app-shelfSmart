@@ -8,30 +8,47 @@ import kotlinx.coroutines.withContext
 
 class GeminiService(private val apiKey: String) {
     private val generativeModel = GenerativeModel(
-        modelName = "gemini-2.0-flash",
+        modelName = "gemini-1.5-pro",
         apiKey = apiKey
     )
 
-    suspend fun simplifyNutritionalInfo(images: List<Bitmap>): String {
+    suspend fun simplifyNutritionalInfo(extractedText: String): String {
         return withContext(Dispatchers.IO) {
             try {
                 val prompt = """
-                    Analyze these images of a nutrition label. They might be different parts of the same label (e.g. left and right side of a cylindrical bottle).
-                    Combine the information to extract the key nutritional information and explain it in simple, easy-to-understand terms for a general audience. 
-                    Focus on what is good or bad about it (e.g., high sugar, good source of protein). 
-                    Keep it brief (max 3 sentences).
+                    Analiza la siguiente información nutricional extraída de una etiqueta y proporciona un resumen simple y claro en español.
+                    Incluye solo los datos más importantes como calorías, proteínas, carbohidratos, grasas, azúcares y sodio.
+                    Si la información está incompleta, menciona solo lo que esté disponible.
+                    Formato: "Por porción: X calorías, Xg proteínas, Xg carbohidratos, Xg grasas, Xg azúcares, Xmg sodio"
+                    
+                    Texto extraído:
+                    $extractedText
                 """.trimIndent()
 
-                val inputContent = content {
-                    images.forEach { image(it) }
-                    text(prompt)
-                }
-
-                val response = generativeModel.generateContent(inputContent)
-                response.text ?: "Could not simplify information."
+                val response = generativeModel.generateContent(prompt)
+                
+                // Log success
+                android.util.Log.d("GeminiService", "API call successful (text-only)")
+                
+                response.text ?: "No se pudo obtener información nutricional"
             } catch (e: Exception) {
                 e.printStackTrace()
-                "Error processing nutritional information: ${e.message}"
+                
+                // Log detailed error
+                android.util.Log.e("GeminiService", "Full error: ${e.javaClass.simpleName}: ${e.message}", e)
+                
+                val errorMsg = when {
+                    e.message?.contains("quota", ignoreCase = true) == true -> 
+                        "QUOTA_ERROR: ${e.message}"
+                    e.message?.contains("API key", ignoreCase = true) == true -> 
+                        "API_KEY_ERROR: ${e.message}"
+                    e.message?.contains("404", ignoreCase = true) == true -> 
+                        "MODEL_NOT_FOUND: ${e.message}"
+                    else -> 
+                        "UNKNOWN_ERROR: ${e.message}"
+                }
+                
+                "Error processing nutritional information: $errorMsg"
             }
         }
     }

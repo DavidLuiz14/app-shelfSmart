@@ -24,6 +24,7 @@ import com.example.appshelfsmart.viewmodel.ProductViewModel
 
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
 import com.example.appshelfsmart.data.repository.ProductRepository
 import com.example.appshelfsmart.ui.AlertsScreen
 import kotlinx.coroutines.launch
@@ -38,8 +39,10 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val viewModel: ProductViewModel = viewModel()
+                    val recipeViewModel: com.example.appshelfsmart.viewmodel.RecipeViewModel = viewModel()
                     val repository = remember { ProductRepository() }
                     var currentScreen by remember { mutableStateOf("main_menu") }
+                    var selectedRecipe by remember { mutableStateOf<com.example.appshelfsmart.data.Recipe?>(null) }
                     
                     // Temporary state to hold scanned data before adding/editing product
                     var tempId by remember { mutableStateOf<String?>(null) }
@@ -60,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     BackHandler(enabled = currentScreen != "main_menu") {
                         when (currentScreen) {
                             "inventory", "scan_barcode", "recipes", "settings", "alerts" -> currentScreen = "main_menu"
+                            "recipe_detail" -> currentScreen = "recipes"
                             "scan_date", "scan_nutrition" -> currentScreen = "add_product" // Return to add product
                             "add_product" -> {
                                 if (tempId != null) {
@@ -96,7 +100,12 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToInventory = { currentScreen = "inventory" },
                             onNavigateToAlerts = { currentScreen = "alerts" },
-                            onNavigateToRecipes = { /* TODO */ },
+                            onNavigateToRecipes = { 
+                                currentScreen = "recipes"
+                                // Trigger recipe search with available ingredients
+                                val ingredients = viewModel.inventoryItems.map { it.name }
+                                recipeViewModel.searchRecipes(ingredients)
+                            },
                             onNavigateToSettings = { /* TODO */ },
                             alertsCount = viewModel.getTotalAlertsCount()
                         )
@@ -253,6 +262,32 @@ class MainActivity : ComponentActivity() {
                             },
                             onBack = { currentScreen = "main_menu" }
                         )
+                        "recipes" -> {
+                            val completeRecipes by recipeViewModel.completeRecipes.collectAsState()
+                            val almostCompleteRecipes by recipeViewModel.almostCompleteRecipes.collectAsState()
+                            val isLoading by recipeViewModel.isLoading.collectAsState()
+                            val errorMessage by recipeViewModel.errorMessage.collectAsState()
+                            
+                            com.example.appshelfsmart.ui.RecipesScreen(
+                                completeRecipes = completeRecipes,
+                                almostCompleteRecipes = almostCompleteRecipes,
+                                isLoading = isLoading,
+                                errorMessage = errorMessage,
+                                onRecipeClick = { recipe ->
+                                    selectedRecipe = recipe
+                                    currentScreen = "recipe_detail"
+                                },
+                                onBack = { currentScreen = "main_menu" }
+                            )
+                        }
+                        "recipe_detail" -> {
+                            selectedRecipe?.let { recipe ->
+                                com.example.appshelfsmart.ui.RecipeDetailScreen(
+                                    recipe = recipe,
+                                    onBack = { currentScreen = "recipes" }
+                                )
+                            }
+                        }
                     }
                 }
             }
