@@ -63,7 +63,7 @@ fun MainMenuScreen(
                 }
             }
             
-            MenuButton(text = "Recetas", onClick = onNavigateToRecipes)
+            MenuButton(text = "🍳 ¿Qué puedo cocinar?", onClick = onNavigateToRecipes)
             MenuButton(text = "Configuraciones", onClick = onNavigateToSettings)
         }
     }

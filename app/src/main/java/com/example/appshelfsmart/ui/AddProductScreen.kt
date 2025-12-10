@@ -409,19 +409,22 @@ fun AddProductScreen(
             }
 
             // Nutritional Info Section
-            Text("Nutritional Information", style = MaterialTheme.typography.titleMedium)
+            Text("Nutritional Information (Optional)", style = MaterialTheme.typography.titleMedium)
             
             var nutritionalInfoRaw by remember { mutableStateOf(initialNutritionalInfoRaw) }
             var nutritionalInfoSimplified by remember { mutableStateOf(initialNutritionalInfoSimplified) }
-            var isSimplifying by remember { mutableStateOf(false) }
+            var isProcessing by remember { mutableStateOf(false) }
+            var processingStep by remember { mutableStateOf("") }
+            var simplificationError by remember { mutableStateOf<String?>(null) }
             val geminiService = remember { com.example.appshelfsmart.data.ai.GeminiService(com.example.appshelfsmart.BuildConfig.GEMINI_API_KEY) }
+            val ocrService = remember { com.example.appshelfsmart.data.ocr.TextRecognitionService() }
             val scope = rememberCoroutineScope()
             
-            // Trigger simplification if raw info is present but simplified is not (e.g. returning from scan)
-            // Trigger simplification if raw info is present but simplified is not (e.g. returning from scan)
+            // Trigger OCR + Gemini processing if raw info is present but simplified is not
             LaunchedEffect(initialNutritionalInfoRaw) {
                 if (initialNutritionalInfoRaw.isNotBlank() && initialNutritionalInfoSimplified.isBlank()) {
-                    isSimplifying = true
+                    isProcessing = true
+                    simplificationError = null
                     scope.launch {
                         try {
                             // Check if it's a URI (or list of URIs)
@@ -444,31 +447,43 @@ fun AddProductScreen(
                                 }
                                 
                                 if (bitmaps.isNotEmpty()) {
-                                    val simplified = geminiService.simplifyNutritionalInfo(bitmaps)
-                                    nutritionalInfoSimplified = simplified
+                                    // Step 1: Extract text using ML Kit OCR (local, offline)
+                                    processingStep = "Extrayendo texto de la imagen..."
+                                    val ocrResult = ocrService.extractTextFromImages(bitmaps)
+                                    
+                                    if (ocrResult.isSuccess) {
+                                        val extractedText = ocrResult.getOrNull() ?: ""
+                                        android.util.Log.d("AddProductScreen", "OCR extracted: $extractedText")
+                                        
+                                        // Step 2: Send text to Gemini for summarization
+                                        processingStep = "Analizando información nutricional..."
+                                        val simplified = geminiService.simplifyNutritionalInfo(extractedText)
+                                        
+                                        if (simplified.contains("Error") || simplified.contains("quota")) {
+                                            simplificationError = "No se pudo procesar con IA. Texto extraído:\n$extractedText"
+                                        } else {
+                                            nutritionalInfoSimplified = simplified
+                                        }
+                                    } else {
+                                        simplificationError = ocrResult.exceptionOrNull()?.message 
+                                            ?: "No se pudo extraer texto de las imágenes."
+                                    }
                                 } else {
-                                    nutritionalInfoSimplified = "Error: No valid images found."
+                                    simplificationError = "No se encontraron imágenes válidas."
                                 }
                             } else {
-                                // Fallback if it's just text (legacy)
-                                nutritionalInfoSimplified = "Error: Expected image but got text."
+                                simplificationError = "Formato de imagen no válido."
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            nutritionalInfoSimplified = "Error processing: ${e.message}"
+                            simplificationError = "Error al procesar. Puedes continuar sin esta información."
                         }
-                        isSimplifying = false
+                        isProcessing = false
+                        processingStep = ""
                     }
                 }
             }
 
-            // Reuse scan screen for text? Or add a specific callback?
-            // For simplicity, let's assume we use the same onScanDate callback but with a special index or flag?
-            // Actually, AddProductScreen signature doesn't support generic text scan callback.
-            // We need to update the signature or handle it locally if possible.
-            // But ScanScreen is a separate screen.
-            // Let's add a new callback `onScanNutrition`.
-            
             if (nutritionalInfoSimplified.isNotBlank()) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -479,8 +494,44 @@ fun AddProductScreen(
                         Text(nutritionalInfoSimplified)
                     }
                 }
-            } else if (isSimplifying) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else if (isProcessing) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = processingStep,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (simplificationError != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "⚠️ Información nutricional no disponible",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            simplificationError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        if (!simplificationError!!.contains("Texto extraído:")) {
+                            Text(
+                                "Puedes guardar el producto sin esta información.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
             }
 
             Button(
@@ -490,7 +541,7 @@ fun AddProductScreen(
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Scan Nutrition Label")
+                Text("Scan Nutrition Label (Optional)")
             }
             
             // Hidden field for raw info if needed, or just store it

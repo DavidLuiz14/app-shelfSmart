@@ -87,6 +87,10 @@ dependencies {
     // Guava
     implementation(libs.guava)
 
+    // Kotlin Coroutines for Google Play Services (needed for .await())
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    testImplementation(kotlin("test"))
 }
