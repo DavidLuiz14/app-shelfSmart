@@ -27,6 +27,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import com.example.appshelfsmart.data.repository.ProductRepository
 import com.example.appshelfsmart.ui.AlertsScreen
+import com.example.appshelfsmart.data.database.AppDatabase
+import com.example.appshelfsmart.viewmodel.ProductViewModelFactory
+import androidx.lifecycle.ViewModelProvider
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -38,7 +41,10 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val viewModel: ProductViewModel = viewModel()
+                    // Initialize database
+                    val database = remember { AppDatabase.getDatabase(applicationContext) }
+                    val viewModelFactory = remember { ProductViewModelFactory(database.productDao()) }
+                    val viewModel: ProductViewModel = viewModel(factory = viewModelFactory)
                     val recipeViewModel: com.example.appshelfsmart.viewmodel.RecipeViewModel = viewModel()
                     val repository = remember { ProductRepository() }
                     var currentScreen by remember { mutableStateOf("main_menu") }
@@ -103,13 +109,16 @@ class MainActivity : ComponentActivity() {
                             onNavigateToRecipes = { 
                                 currentScreen = "recipes"
                                 // Trigger recipe search with available ingredients
-                                val ingredients = viewModel.inventoryItems.map { it.name }
+                                val ingredients = viewModel.inventoryItems.value.map { it.name }
                                 recipeViewModel.searchRecipes(ingredients)
                             },
                             onNavigateToSettings = { /* TODO */ },
                             alertsCount = viewModel.getTotalAlertsCount()
                         )
-                        "inventory" -> InventoryScreen(
+                        "inventory" -> {
+                            val inventoryItems by viewModel.inventoryItems.collectAsState()
+                            
+                            InventoryScreen(
                             onScanClick = { 
                                 tempId = null
                                 tempBarcode = ""
@@ -124,15 +133,16 @@ class MainActivity : ComponentActivity() {
                                 tempNutritionalInfoSimplified = ""
                                 currentScreen = "scan_barcode" 
                             },
-                            inventoryItems = viewModel.inventoryItems,
+                            inventoryItems = inventoryItems,
                             totalProducts = viewModel.totalProductsCount,
                             expiringSoonCount = viewModel.getExpiringSoonProducts().size,
                             lowStockCount = viewModel.getLowStockProducts().size,
                             onDeleteClick = { product ->
-                                viewModel.removeProduct(product)
+                                viewModel.deleteProduct(product)
                             },
                             viewModel = viewModel
                         )
+                        }
                         "scan_barcode" -> ScanScreen(
                             onProductScanned = { barcode ->
                                 tempBarcode = barcode
@@ -162,7 +172,7 @@ class MainActivity : ComponentActivity() {
                             initialMode = ScanMode.BARCODE
                         )
                         "scan_date" -> ScanScreen(
-                            onProductScanned = { },
+                            onProductScanned = { _ -> },
                             onDateScanned = { date, _, _, _ ->
                                 tempDate = date
                                 currentScreen = "add_product" 
@@ -172,7 +182,7 @@ class MainActivity : ComponentActivity() {
                             initialMode = ScanMode.TEXT
                         )
                         "scan_nutrition" -> ScanScreen(
-                            onProductScanned = { },
+                            onProductScanned = { _ -> },
                             onDateScanned = { text, _, _, _ ->
                                 // We use onDateScanned callback but it returns text. 
                                 // Ideally we should have a generic onTextScanned. 
