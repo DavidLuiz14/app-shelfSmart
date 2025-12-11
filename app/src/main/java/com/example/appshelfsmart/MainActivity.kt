@@ -3,51 +3,88 @@ package com.example.appshelfsmart
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+
 import com.example.appshelfsmart.ui.InventoryScreen
 import com.example.appshelfsmart.ui.ScanScreen
 import com.example.appshelfsmart.ui.MainMenuScreen
 import com.example.appshelfsmart.ui.theme.AppShelfSmartTheme
-
 import com.example.appshelfsmart.data.Product
 import com.example.appshelfsmart.ui.AddProductScreen
 import com.example.appshelfsmart.ui.ScanMode
 import com.example.appshelfsmart.viewmodel.ProductViewModel
-
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.runtime.collectAsState
 import com.example.appshelfsmart.data.repository.ProductRepository
 import com.example.appshelfsmart.ui.AlertsScreen
 import com.example.appshelfsmart.data.database.AppDatabase
 import com.example.appshelfsmart.viewmodel.ProductViewModelFactory
-import androidx.lifecycle.ViewModelProvider
-import kotlinx.coroutines.launch
+import com.example.appshelfsmart.workers.AlertWorker
+import com.example.appshelfsmart.data.repository.UserPreferencesRepository
+import com.example.appshelfsmart.ui.SettingsScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            AppShelfSmartTheme {
+            // User Preferences (Dark Mode)
+            val userPreferencesRepository = remember { UserPreferencesRepository(applicationContext) }
+            val isDarkMode by userPreferencesRepository.isDarkMode.collectAsState(initial = false)
+
+            AppShelfSmartTheme(darkTheme = isDarkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Initialize database
+                    // WorkManager
+                    androidx.work.WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+                        "ShelfSmartAlertWork",
+                        androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                        androidx.work.PeriodicWorkRequestBuilder<AlertWorker>(
+                            12, java.util.concurrent.TimeUnit.HOURS
+                        ).build()
+                    )
+                    
+                    // Request Notification Permission (Android 13+)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        val permissionState = androidx.core.content.ContextCompat.checkSelfPermission(
+                            this,
+                            android.Manifest.permission.POST_NOTIFICATIONS
+                        )
+                        if (permissionState != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            val launcher = rememberLauncherForActivityResult(
+                                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                            ) { isGranted: Boolean ->
+                                // Handle permission
+                            }
+                            LaunchedEffect(Unit) {
+                                launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+                    }
+
                     val database = remember { AppDatabase.getDatabase(applicationContext) }
                     val viewModelFactory = remember { ProductViewModelFactory(database.productDao()) }
                     val viewModel: ProductViewModel = viewModel(factory = viewModelFactory)
                     val recipeViewModel: com.example.appshelfsmart.viewmodel.RecipeViewModel = viewModel()
                     val repository = remember { ProductRepository() }
-                    var currentScreen by remember { mutableStateOf("main_menu") }
+                    
+                    // Check for deep link from notification
+                    val initialScreen = if (intent.getStringExtra("navigate_to") == "alerts") "alerts" else "main_menu"
+                    var currentScreen by remember { mutableStateOf(initialScreen) }
+                    
                     var selectedRecipe by remember { mutableStateOf<com.example.appshelfsmart.data.Recipe?>(null) }
                     
                     // Temporary state to hold scanned data before adding/editing product
@@ -57,6 +94,7 @@ class MainActivity : ComponentActivity() {
                     var tempName by remember { mutableStateOf("") }
                     var tempBrand by remember { mutableStateOf("") }
                     var tempManufacturer by remember { mutableStateOf("") }
+                    var tempUnits by remember { mutableStateOf("1") }
                     var tempCategory by remember { mutableStateOf("") }
                     var tempQuantityUnit by remember { mutableStateOf("") }
                     var tempQuantityValue by remember { mutableStateOf(0.0) }
@@ -64,6 +102,9 @@ class MainActivity : ComponentActivity() {
                     var tempNutritionalInfoSimplified by remember { mutableStateOf("") }
                     var tempExpirationDates by remember { mutableStateOf(listOf<String>()) }
                     var tempPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+                    
+                    // App State
+                    var selectedProductFromAlert by remember { mutableStateOf<Product?>(null) }
                     
                     // Navigation Logic
                     BackHandler(enabled = currentScreen != "main_menu") {
@@ -81,6 +122,7 @@ class MainActivity : ComponentActivity() {
                                 // Reset temp fields
                                 tempBarcode = ""
                                 tempDate = ""
+                                tempUnits = "1"
                                 tempNutritionalInfoRaw = ""
                                 tempNutritionalInfoSimplified = ""
                             }
@@ -98,6 +140,7 @@ class MainActivity : ComponentActivity() {
                                 tempBrand = ""
                                 tempManufacturer = ""
                                 tempCategory = ""
+                                tempUnits = "1"
                                 tempQuantityUnit = ""
                                 tempQuantityValue = 0.0
                                 tempNutritionalInfoRaw = ""
@@ -112,8 +155,17 @@ class MainActivity : ComponentActivity() {
                                 val ingredients = viewModel.inventoryItems.value.map { it.name }
                                 recipeViewModel.searchRecipes(ingredients)
                             },
-                            onNavigateToSettings = { /* TODO */ },
+                            onNavigateToSettings = { currentScreen = "settings" },
                             alertsCount = viewModel.getTotalAlertsCount()
+                        )
+                        "settings" -> SettingsScreen(
+                            isDarkMode = isDarkMode,
+                            onToggleDarkMode = { enabled ->
+                                lifecycleScope.launch {
+                                    userPreferencesRepository.setDarkMode(enabled)
+                                }
+                            },
+                            onBack = { currentScreen = "main_menu" }
                         )
                         "inventory" -> {
                             val inventoryItems by viewModel.inventoryItems.collectAsState()
@@ -127,6 +179,7 @@ class MainActivity : ComponentActivity() {
                                 tempBrand = ""
                                 tempManufacturer = ""
                                 tempCategory = ""
+                                tempUnits = "1"
                                 tempQuantityUnit = ""
                                 tempQuantityValue = 0.0
                                 tempNutritionalInfoRaw = ""
@@ -140,22 +193,39 @@ class MainActivity : ComponentActivity() {
                             onDeleteClick = { product ->
                                 viewModel.deleteProduct(product)
                             },
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            initialSelectedProduct = selectedProductFromAlert,
+                            onInitialProductHandled = { selectedProductFromAlert = null }
                         )
                         }
                         "scan_barcode" -> ScanScreen(
                             onProductScanned = { barcode ->
                                 tempBarcode = barcode
-                                // Fetch product details
+                                // Check local inventory first to preserve details like Photo
+                                val existingProduct = viewModel.getProductByBarcode(barcode)
+                                
                                 lifecycleScope.launch {
-                                    val product = repository.getProductDetails(barcode)
-                                    if (product != null) {
-                                        if (product.name.isNotBlank()) tempName = product.name
-                                        if (product.brand.isNotBlank()) tempBrand = product.brand
-                                        if (product.manufacturer.isNotBlank()) tempManufacturer = product.manufacturer
-                                        if (product.category.isNotBlank()) tempCategory = product.category
-                                        if (!product.quantityUnit.isNullOrBlank()) tempQuantityUnit = product.quantityUnit
-                                        if (product.quantityValue != null && product.quantityValue > 0) tempQuantityValue = product.quantityValue
+                                    if (existingProduct != null) {
+                                         // ADD new unit to existing product
+                                         tempName = existingProduct.name
+                                         tempBrand = existingProduct.brand
+                                         tempManufacturer = existingProduct.manufacturer
+                                         tempCategory = existingProduct.category
+                                         tempQuantityUnit = existingProduct.quantityUnit ?: ""
+                                         tempQuantityValue = existingProduct.quantityValue ?: 0.0
+                                         if (existingProduct.photoUri != null) {
+                                             tempPhotoUri = android.net.Uri.parse(existingProduct.photoUri)
+                                         }
+                                    } else {
+                                        val product = repository.getProductDetails(barcode)
+                                        if (product != null) {
+                                            if (product.name.isNotBlank()) tempName = product.name
+                                            if (product.brand.isNotBlank()) tempBrand = product.brand
+                                            if (product.manufacturer.isNotBlank()) tempManufacturer = product.manufacturer
+                                            if (product.category.isNotBlank()) tempCategory = product.category
+                                            if (!product.quantityUnit.isNullOrBlank()) tempQuantityUnit = product.quantityUnit
+                                            if (product.quantityValue != null && product.quantityValue > 0) tempQuantityValue = product.quantityValue
+                                        }
                                     }
                                     currentScreen = "add_product"
                                 }
@@ -184,13 +254,6 @@ class MainActivity : ComponentActivity() {
                         "scan_nutrition" -> ScanScreen(
                             onProductScanned = { _ -> },
                             onDateScanned = { text, _, _, _ ->
-                                // We use onDateScanned callback but it returns text. 
-                                // Ideally we should have a generic onTextScanned. 
-                                // But for now, let's use the first parameter as the raw text.
-                                // Wait, ScanScreen's TextRecognitionAnalyzer filters for dates.
-                                // We need to update ScanScreen to support generic text scanning or just use what we have.
-                                // The TextRecognitionAnalyzer logic is specific to dates.
-                                // I need to update ScanScreen to allow raw text return.
                                 tempNutritionalInfoRaw = text 
                                 currentScreen = "add_product" 
                             },
@@ -211,6 +274,7 @@ class MainActivity : ComponentActivity() {
                             initialNutritionalInfoRaw = tempNutritionalInfoRaw,
                             initialNutritionalInfoSimplified = tempNutritionalInfoSimplified,
                             initialExpirationDates = tempExpirationDates,
+                            initialUnits = tempUnits,
                             initialPhotoUri = tempPhotoUri,
                             onSave = { productList ->
                                 productList.forEach { product ->
@@ -232,6 +296,7 @@ class MainActivity : ComponentActivity() {
                                     tempBrand = ""
                                     tempManufacturer = ""
                                     tempCategory = ""
+                                    tempUnits = "1"
                                     tempQuantityUnit = ""
                                     tempQuantityValue = 0.0
                                     tempNutritionalInfoRaw = ""
@@ -250,7 +315,7 @@ class MainActivity : ComponentActivity() {
                             onScanNutrition = {
                                 currentScreen = "scan_nutrition"
                             },
-                            onStateChanged = { name, brand, manufacturer, category, qtyVal, qtyUnit, dates, photo ->
+                            onStateChanged = { name, brand, manufacturer, category, qtyVal, qtyUnit, dates, units, photo ->
                                 tempName = name
                                 tempBrand = brand
                                 tempManufacturer = manufacturer
@@ -258,6 +323,7 @@ class MainActivity : ComponentActivity() {
                                 tempQuantityValue = qtyVal
                                 tempQuantityUnit = qtyUnit
                                 tempExpirationDates = dates
+                                tempUnits = units
                                 tempPhotoUri = photo
                             }
                         )
@@ -267,7 +333,7 @@ class MainActivity : ComponentActivity() {
                             cautionAlerts = viewModel.getCautionExpirationAlerts(),
                             lowStockAlerts = viewModel.getLowStockProducts(),
                             onProductClick = { product ->
-                                // Navigate to product details or inventory
+                                selectedProductFromAlert = product
                                 currentScreen = "inventory"
                             },
                             onBack = { currentScreen = "main_menu" }

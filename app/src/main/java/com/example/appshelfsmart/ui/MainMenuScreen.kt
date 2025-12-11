@@ -15,7 +15,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainMenuScreen(
     onNavigateToRegistration: () -> Unit,
@@ -25,7 +29,21 @@ fun MainMenuScreen(
     onNavigateToSettings: () -> Unit,
     alertsCount: Int = 0
 ) {
-    Scaffold { paddingValues ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("") }, // Empty title for minimalist look or "AppShelfSmart"
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Settings,
+                            contentDescription = "Configuraciones"
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .padding(paddingValues)
@@ -64,7 +82,7 @@ fun MainMenuScreen(
             }
             
             MenuButton(text = "🍳 ¿Qué puedo cocinar?", onClick = onNavigateToRecipes)
-            MenuButton(text = "Configuraciones", onClick = onNavigateToSettings)
+            // Settings button removed
         }
     }
 }
