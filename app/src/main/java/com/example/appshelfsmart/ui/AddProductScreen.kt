@@ -45,18 +45,19 @@ fun AddProductScreen(
     initialNutritionalInfoRaw: String,
     initialNutritionalInfoSimplified: String,
     initialExpirationDates: List<String> = emptyList(),
+    initialUnits: String = "1",
     initialPhotoUri: Uri? = null,
     onSave: (List<Product>) -> Unit,
     onCancel: () -> Unit,
     onScanDate: (Int) -> Unit,
     onScanNutrition: () -> Unit,
-    onStateChanged: (String, String, String, String, Double, String, List<String>, Uri?) -> Unit = { _, _, _, _, _, _, _, _ -> }
+    onStateChanged: (String, String, String, String, Double, String, List<String>, String, Uri?) -> Unit = { _, _, _, _, _, _, _, _, _ -> }
 ) {
     var name by remember { mutableStateOf(initialName) }
     var brand by remember { mutableStateOf(initialBrand) }
     var manufacturer by remember { mutableStateOf(initialManufacturer) }
     var category by remember { mutableStateOf(initialCategory) }
-    var units by remember { mutableStateOf("1") }
+    var units by remember { mutableStateOf(initialUnits) }
     var quantityValue by remember { mutableStateOf(if (initialQuantityValue > 0) initialQuantityValue.toString() else "") }
     var quantityUnit by remember { mutableStateOf(initialQuantityUnit.ifBlank { "g" }) }
     var photoUri by remember { mutableStateOf(initialPhotoUri) }
@@ -65,36 +66,25 @@ fun AddProductScreen(
     var expirationDates by remember { 
         mutableStateOf(
             if (initialExpirationDates.isNotEmpty()) initialExpirationDates 
-            else List(1) { initialDate }
+            else List(units.toIntOrNull() ?: 1) { initialDate }
         ) 
     }
 
     // Sync state back to parent
-    LaunchedEffect(name, brand, manufacturer, category, quantityValue, quantityUnit, expirationDates, photoUri) {
+    LaunchedEffect(name, brand, manufacturer, category, quantityValue, quantityUnit, expirationDates, units, photoUri) {
         val qValue = quantityValue.toDoubleOrNull() ?: 0.0
-        onStateChanged(name, brand, manufacturer, category, qValue, quantityUnit, expirationDates, photoUri)
+        onStateChanged(name, brand, manufacturer, category, qValue, quantityUnit, expirationDates, units, photoUri)
     }
 
     // Update expirationDates list size when units changes
     LaunchedEffect(units) {
         val count = units.toIntOrNull() ?: 1
-        if (count > 0) {
+        if (count > 0 && count != expirationDates.size) {
             val currentList = expirationDates.toMutableList()
             if (count > currentList.size) {
-                // Add empty dates
-                repeat(count - currentList.size) { currentList.add("") }
-            } else if (count < currentList.size) {
-                // Remove dates
-                // Don't remove if we want to preserve data, but UI implies matching units.
-                // Let's keep it simple and match units.
-            }
-            
-            if (currentList.size != count) {
-                 expirationDates = if (count > currentList.size) {
-                     currentList + List(count - currentList.size) { "" }
-                 } else {
-                     currentList.take(count)
-                 }
+                 expirationDates = currentList + List(count - currentList.size) { "" }
+            } else {
+                 expirationDates = currentList.take(count)
             }
         }
     }
@@ -556,9 +546,9 @@ fun AddProductScreen(
                 Button(
                     onClick = {
                         if (isFormValid) {
-                            val products = expirationDates.map { date ->
+                            val products = expirationDates.mapIndexed { index, date ->
                                 Product(
-                                    id = if (productId != null && expirationDates.size == 1) productId else UUID.randomUUID().toString(),
+                                    id = if (productId != null && index == 0) productId else UUID.randomUUID().toString(),
                                     name = name,
                                     barcode = initialBarcode,
                                     expirationDate = date,

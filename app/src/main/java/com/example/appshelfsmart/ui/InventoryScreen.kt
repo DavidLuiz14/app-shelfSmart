@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Color
 import com.example.appshelfsmart.data.Product
@@ -63,9 +64,11 @@ fun InventoryScreen(
     expiringSoonCount: Int,
     lowStockCount: Int,
     onDeleteClick: (Product) -> Unit,
-    viewModel: ProductViewModel
+    viewModel: ProductViewModel,
+    initialSelectedProduct: Product? = null,
+    onInitialProductHandled: () -> Unit = {}
 ) {
-    var selectedProduct by remember { mutableStateOf<Product?>(null) }
+    var selectedGroup by remember { mutableStateOf<List<Product>?>(null) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var expirationFilter by remember { mutableStateOf(ExpirationFilter.ALL) }
@@ -100,6 +103,24 @@ fun InventoryScreen(
             product.brand.lowercase().contains(lowerQuery)
         }
     }
+    
+    // Group items for display
+    val groupedItems = filteredItems
+        .groupBy { it.barcode.ifBlank { "${it.name}|${it.brand}" } }
+        .map { (_, group) -> group }
+
+    // Auto-select group from alert deep link
+    LaunchedEffect(initialSelectedProduct) {
+        if (initialSelectedProduct != null) {
+            val targetGroup = groupedItems.find { group -> 
+                group.any { it.barcode == initialSelectedProduct.barcode && it.name == initialSelectedProduct.name }
+            }
+            if (targetGroup != null) {
+                selectedGroup = targetGroup
+                onInitialProductHandled()
+            }
+        }
+    }
 
     // Apply expiration filter
     filteredItems = when (expirationFilter) {
@@ -116,28 +137,45 @@ fun InventoryScreen(
         ExpirationFilter.ALL -> filteredItems
     }
 
-    // Apply sorting
-    filteredItems = when (sortOption) {
-        SortOption.NEWEST -> filteredItems.sortedByDescending { it.purchaseDate }
-        SortOption.OLDEST -> filteredItems.sortedBy { it.purchaseDate }
-        SortOption.EXPIRING_SOONEST -> filteredItems.sortedBy { 
-            DateUtils.parseDate(it.expirationDate)?.time ?: Long.MAX_VALUE 
+    // Group items by Barcode (primary) or Name+Brand (fallback)
+    val groupedInventory = filteredItems.groupBy { 
+        if (it.barcode.isNotBlank()) it.barcode else "${it.name}|${it.brand}"
+    }.values.toList()
+
+    // Apply sorting to groups based on their "representative" item (e.g. earliest expiring)
+    val sortedGroups = when (sortOption) {
+        SortOption.NEWEST -> groupedInventory.sortedByDescending { group -> 
+            group.maxOfOrNull { it.purchaseDate } ?: 0L 
+        }
+        SortOption.OLDEST -> groupedInventory.sortedBy { group -> 
+            group.minOfOrNull { it.purchaseDate } ?: Long.MAX_VALUE 
+        }
+        SortOption.EXPIRING_SOONEST -> groupedInventory.sortedBy { group ->
+            group.minOfOrNull { DateUtils.parseDate(it.expirationDate)?.time ?: Long.MAX_VALUE } ?: Long.MAX_VALUE
         }
     }
 
-    if (selectedProduct != null) {
-        ProductDetailDialog(
-            product = selectedProduct!!,
-            onDismiss = { selectedProduct = null },
-            onConsumed = { 
-                viewModel.markAsConsumed(it)
-                selectedProduct = null
-            },
-            onWasted = { 
-                viewModel.markAsWasted(it)
-                selectedProduct = null
+    if (selectedGroup != null) {
+        // Refresh the selected group from inventoryItems to capture updates (e.g., consumption)
+        val refreshedGroup = inventoryItems.filter { 
+            val representative = selectedGroup!!.first()
+            if (representative.barcode.isNotBlank()) {
+                it.barcode == representative.barcode
+            } else {
+                it.name == representative.name && it.brand == representative.brand
             }
-        )
+        }
+        
+        if (refreshedGroup.isNotEmpty()) {
+            ProductDetailDialog(
+                productGroup = refreshedGroup,
+                onDismiss = { selectedGroup = null },
+                onConsumed = { viewModel.markAsConsumed(it) },
+                onWasted = { viewModel.markAsWasted(it) }
+            )
+        } else {
+            selectedGroup = null // Group empty/deleted
+        }
     }
 
     Scaffold(
@@ -259,7 +297,7 @@ fun InventoryScreen(
                     }
                 }
 
-                if (filteredItems.isEmpty()) {
+                if (sortedGroups.isEmpty()) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -283,11 +321,10 @@ fun InventoryScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredItems) { item ->
-                            ProductCard(
-                                product = item,
-                                onView = { selectedProduct = item },
-                                onDelete = { onDeleteClick(item) }
+                        items(sortedGroups) { group ->
+                            ProductGroupCard(
+                                productGroup = group,
+                                onView = { selectedGroup = group }
                             )
                         }
                     }
@@ -298,19 +335,32 @@ fun InventoryScreen(
 }
 
 @Composable
-fun ProductCard(
-    product: Product,
-    onView: () -> Unit,
-    onDelete: () -> Unit
+fun ProductGroupCard(
+    productGroup: List<Product>,
+    onView: () -> Unit
 ) {
-    val daysUntilExpiration = DateUtils.daysBetween(product.expirationDate)
-    val isExpired = DateUtils.isExpired(product.expirationDate)
-    val isExpiringSoon = DateUtils.isExpiringSoon(product.expirationDate, 7)
+    val representative = productGroup.first()
+    val totalUnits = productGroup.sumOf { it.units }
     
-    val expirationColor = when {
-        isExpired -> MaterialTheme.colorScheme.error
-        isExpiringSoon -> Color(0xFFFF9800) // Orange
+    // Calculate aggregate expiration status
+    // Find earliest expiration date
+    val sortedByExpiration = productGroup.sortedBy { DateUtils.parseDate(it.expirationDate)?.time ?: Long.MAX_VALUE }
+    val earliestExpiration = sortedByExpiration.first().expirationDate
+    val daysUntilExpr = DateUtils.daysBetween(earliestExpiration)
+    
+    val anyExpired = productGroup.any { DateUtils.isExpired(it.expirationDate) }
+    val anyExpiringSoon = productGroup.any { DateUtils.isExpiringSoon(it.expirationDate, 7) }
+    
+    val statusColor = when {
+        anyExpired -> MaterialTheme.colorScheme.error
+        anyExpiringSoon -> Color(0xFFFF9800) // Orange
         else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    
+    val statusText = when {
+        anyExpired -> "At least 1 Expired"
+        anyExpiringSoon -> "Expiring Soon: $earliestExpiration"
+        else -> "Expires: $earliestExpiration"
     }
 
     Card(
@@ -325,34 +375,34 @@ fun ProductCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = product.name,
+                    text = representative.name,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
-                Row {
-                    androidx.compose.material3.IconButton(onClick = onView) {
-                        Icon(androidx.compose.material.icons.Icons.Default.Visibility, contentDescription = "View")
-                    }
-                    androidx.compose.material3.IconButton(onClick = onDelete) {
-                        Icon(androidx.compose.material.icons.Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                    }
+                IconButton(onClick = onView) {
+                    Icon(Icons.Default.Visibility, contentDescription = "View Details")
                 }
             }
-            if (product.brand.isNotBlank()) {
-                Text(text = "Brand: ${product.brand}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (representative.brand.isNotBlank()) {
+                Text(text = "Brand: ${representative.brand}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(text = "Units: ${product.units}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = "Total Units: $totalUnits", 
+                style = MaterialTheme.typography.bodyMedium, 
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = DateUtils.formatDaysUntil(daysUntilExpiration),
+                    text = statusText,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = expirationColor
+                    color = statusColor
                 )
                 Text(
-                    text = product.barcode,
+                    text = representative.barcode,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -363,14 +413,18 @@ fun ProductCard(
 
 @Composable
 fun ProductDetailDialog(
-    product: Product,
+    productGroup: List<Product>,
     onDismiss: () -> Unit,
     onConsumed: (Product) -> Unit,
     onWasted: (Product) -> Unit
 ) {
-    val daysSincePurchase = ((System.currentTimeMillis() - product.purchaseDate) / (1000 * 60 * 60 * 24)).toInt()
-    val daysUntilExpiration = DateUtils.daysBetween(product.expirationDate)
+    val representative = productGroup.first()
     val scrollState = androidx.compose.foundation.rememberScrollState()
+    val totalUnits = productGroup.sumOf { it.units }
+    val daysSincePurchase = ((System.currentTimeMillis() - representative.purchaseDate) / (1000 * 60 * 60 * 24)).toInt()
+    
+    // Sort items by expiration date for the list
+    val sortedItems = productGroup.sortedBy { DateUtils.parseDate(it.expirationDate)?.time ?: Long.MAX_VALUE }
     
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -379,15 +433,15 @@ fun ProductDetailDialog(
                 Text("Cerrar")
             }
         },
-        title = { Text(text = product.name) },
+        title = { Text(text = representative.name) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (product.photoUri != null) {
+                if (representative.photoUri != null) {
                     coil.compose.AsyncImage(
-                        model = product.photoUri,
+                        model = representative.photoUri,
                         contentDescription = "Product Photo",
                         modifier = Modifier
                             .fillMaxWidth()
@@ -397,88 +451,105 @@ fun ProductDetailDialog(
                     )
                 }
                 
-                // Purchase date info
-                Text(
-                    text = "📅 Fecha de compra: ${DateUtils.formatDate(product.purchaseDate)}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "⏱️ ${DateUtils.formatDaysAgo(daysSincePurchase)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                
-                // Expiration date info
-                Text(
-                    text = "⚠️ Fecha de caducidad: ${product.expirationDate}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = DateUtils.formatDaysUntil(daysUntilExpiration),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (DateUtils.isExpired(product.expirationDate)) 
-                        MaterialTheme.colorScheme.error 
-                    else if (DateUtils.isExpiringSoon(product.expirationDate, 7))
-                        Color(0xFFFF9800)
-                    else 
-                        Color(0xFF4CAF50)
-                )
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                
-                // Product details
-                Text(
-                    text = "📦 Cantidad por unidad: ${product.quantityValue ?: "N/A"} ${product.quantityUnit ?: ""}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "🔢 Unidades disponibles: ${product.units}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (product.brand.isNotBlank()) {
-                    Text("🏷️ Marca: ${product.brand}")
-                }
-                if (product.category.isNotBlank()) {
-                    Text("📂 Categoría: ${product.category}")
-                }
-                Text("🔖 Código de barras: ${product.barcode}")
-                
-                if (!product.nutritionalInfoSimplified.isNullOrBlank()) {
-                    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Text("🥗 Info Nutricional:", style = MaterialTheme.typography.labelLarge)
-                    Text(product.nutritionalInfoSimplified, style = MaterialTheme.typography.bodySmall)
+                // General Info
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "📅 Fecha de compra: ${DateUtils.formatDate(representative.purchaseDate)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "⏱️ ${DateUtils.formatDaysAgo(daysSincePurchase)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    if (representative.brand.isNotBlank()) Text("🏷️ Brand: ${representative.brand}")
+                    if (representative.category.isNotBlank()) Text("📂 Category: ${representative.category}")
+                    Text("📦 Quantity per Unit: ${representative.quantityValue ?: "N/A"} ${representative.quantityUnit ?: ""}")
+                    Text(
+                         text = "🔢 Total Units in Stock: $totalUnits",
+                         style = MaterialTheme.typography.titleSmall,
+                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Text("🔖 Barcode: ${representative.barcode}")
                 }
                 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider()
                 
-                // Action buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { onConsumed(product) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
-                        )
-                    ) {
-                        Text("✓ Consumido")
-                    }
-                    Button(
-                        onClick = { onWasted(product) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("✗ Desperdiciado")
-                    }
+                Text("Individual Items:", style = MaterialTheme.typography.titleMedium)
+                
+                // List of items
+                sortedItems.forEach { product ->
+                    ProductUnitRow(
+                        product = product,
+                        onConsumed = onConsumed,
+                        onWasted = onWasted
+                    )
+                }
+                
+                if (!representative.nutritionalInfoSimplified.isNullOrBlank()) {
+                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                     Text("🥗 Info Nutricional (General):", style = MaterialTheme.typography.labelLarge)
+                     Text(representative.nutritionalInfoSimplified, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
     )
+}
+
+@Composable
+fun ProductUnitRow(
+    product: Product,
+    onConsumed: (Product) -> Unit,
+    onWasted: (Product) -> Unit
+) {
+    val daysUntilExpiration = DateUtils.daysBetween(product.expirationDate)
+    val isExpired = DateUtils.isExpired(product.expirationDate)
+    val isExpiringSoon = DateUtils.isExpiringSoon(product.expirationDate, 7)
+    
+    val dateColor = when {
+        isExpired -> MaterialTheme.colorScheme.error
+        isExpiringSoon -> Color(0xFFFF9800)
+        else -> Color(0xFF4CAF50)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Exp: ${product.expirationDate}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = dateColor
+                )
+                Text(
+                    text = "Units: ${product.units}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                androidx.compose.material3.TextButton(
+                    onClick = { onConsumed(product) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF4CAF50))
+                ) {
+                    Text("Check")
+                }
+                androidx.compose.material3.TextButton(
+                    onClick = { onWasted(product) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Trash")
+                }
+            }
+        }
+    }
 }

@@ -27,7 +27,17 @@ class ProductViewModel(private val productDao: ProductDao) : ViewModel() {
     }
     
     fun getLowStockProducts(threshold: Int = 2): List<Product> {
-        return inventoryItems.value.filter { it.units <= threshold }
+        return inventoryItems.value
+            .groupBy { it.barcode.ifBlank { "${it.name}|${it.brand}" } }
+            .mapNotNull { (_, group) ->
+                val totalUnits = group.sumOf { it.units }
+                if (totalUnits <= threshold) {
+                    val representative = group.maxByOrNull { it.purchaseDate }
+                    representative?.copy(units = totalUnits)
+                } else {
+                    null
+                }
+            }
     }
     
     // Search functionality
@@ -140,5 +150,11 @@ class ProductViewModel(private val productDao: ProductDao) : ViewModel() {
     
     fun getProductById(id: String): Product? {
         return inventoryItems.value.find { it.id == id }
+    }
+
+    fun getProductByBarcode(barcode: String): Product? {
+        return inventoryItems.value
+            .filter { it.barcode == barcode }
+            .maxByOrNull { it.purchaseDate } // Get the most recent one to likely have the latest photo info
     }
 }
