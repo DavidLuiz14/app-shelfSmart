@@ -43,6 +43,10 @@ class MainActivity : ComponentActivity() {
             val userPreferencesRepository = remember { UserPreferencesRepository(applicationContext) }
             val isDarkMode by userPreferencesRepository.isDarkMode.collectAsState(initial = false)
 
+
+
+
+
             AppShelfSmartTheme(darkTheme = isDarkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -370,3 +374,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+
+
