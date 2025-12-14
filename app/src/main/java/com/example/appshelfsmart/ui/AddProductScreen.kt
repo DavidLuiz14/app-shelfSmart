@@ -450,7 +450,7 @@ fun AddProductScreen(
                                         val simplified = geminiService.simplifyNutritionalInfo(extractedText)
                                         
                                         if (simplified.contains("Error") || simplified.contains("quota")) {
-                                            simplificationError = "No se pudo procesar con IA. Texto extraído:\n$extractedText"
+                                            simplificationError = "$simplified\n\nTexto extraído:\n$extractedText"
                                         } else {
                                             nutritionalInfoSimplified = simplified
                                         }

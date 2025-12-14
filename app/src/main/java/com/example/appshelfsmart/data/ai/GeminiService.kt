@@ -1,54 +1,75 @@
 package com.example.appshelfsmart.data.ai
 
-import android.graphics.Bitmap
 import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class GeminiService(private val apiKey: String) {
-    private val generativeModel = GenerativeModel(
-        modelName = "gemini-1.5-pro",
-        apiKey = apiKey
-    )
 
     suspend fun simplifyNutritionalInfo(extractedText: String): String {
         return withContext(Dispatchers.IO) {
-            try {
-                val prompt = """
-                    Analiza la siguiente información nutricional extraída de una etiqueta y proporciona un resumen simple y claro en español.
-                    Incluye solo los datos más importantes como calorías, proteínas, carbohidratos, grasas, azúcares y sodio.
-                    Si la información está incompleta, menciona solo lo que esté disponible.
-                    Formato: "Por porción: X calorías, Xg proteínas, Xg carbohidratos, Xg grasas, Xg azúcares, Xmg sodio"
-                    
-                    Texto extraído:
-                    $extractedText
-                """.trimIndent()
+            // Sanitize API Key
+            val cleanKey = apiKey.trim().replace("\"", "")
+            
+            if (cleanKey.isBlank()) {
+                return@withContext "API Error: API Key is missing. Check local.properties."
+            }
 
-                val response = generativeModel.generateContent(prompt)
-                
-                // Log success
-                android.util.Log.d("GeminiService", "API call successful (text-only)")
-                
-                response.text ?: "No se pudo obtener información nutricional"
-            } catch (e: Exception) {
-                e.printStackTrace()
-                
-                // Log detailed error
-                android.util.Log.e("GeminiService", "Full error: ${e.javaClass.simpleName}: ${e.message}", e)
-                
-                val errorMsg = when {
-                    e.message?.contains("quota", ignoreCase = true) == true -> 
-                        "QUOTA_ERROR: ${e.message}"
-                    e.message?.contains("API key", ignoreCase = true) == true -> 
-                        "API_KEY_ERROR: ${e.message}"
-                    e.message?.contains("404", ignoreCase = true) == true -> 
-                        "MODEL_NOT_FOUND: ${e.message}"
-                    else -> 
-                        "UNKNOWN_ERROR: ${e.message}"
+            // Try multiple variants based on user's available models
+            val modelsToTry = listOf(
+                "gemini-2.0-flash", // Confirmed available in user's list
+                "gemini-flash-latest",
+                "gemini-1.5-flash" 
+            )
+            
+            var lastException: Exception? = null
+
+            for (modelName in modelsToTry) {
+                try {
+                    android.util.Log.d("GeminiService", "Attempting with model: $modelName")
+                    val generativeModel = GenerativeModel(
+                        modelName = modelName,
+                        apiKey = cleanKey
+                    )
+
+                    val prompt = """
+                        Analiza la siguiente información nutricional extraída de una etiqueta y proporciona un resumen simple y claro en español.
+                        Incluye solo los datos más importantes como calorías, proteínas, carbohidratos, grasas, azúcares y sodio.
+                        Si la información está incompleta, menciona solo lo que esté disponible.
+                        Formato: "Por porción: X calorías, Xg proteínas, Xg carbohidratos, Xg grasas, Xg azúcares, Xmg sodio"
+                        
+                        Texto extraído:
+                        $extractedText
+                    """.trimIndent()
+
+                    val response = generativeModel.generateContent(prompt)
+                    
+                    if (response.text != null) {
+                        android.util.Log.d("GeminiService", "Success with model: $modelName")
+                        return@withContext response.text!!
+                    }
+                } catch (e: Exception) {
+                    lastException = e
+                    android.util.Log.w("GeminiService", "Failed with model $modelName: ${e.message}")
+                    // If permissions error, don't try other models
+                    if (e.message?.contains("API key", ignoreCase = true) == true) break
                 }
-                
-                "Error processing nutritional information: $errorMsg"
+            }
+            
+            // Handle final error
+            val e = lastException ?: Exception("Unknown error")
+            val msg = e.message ?: e.toString()
+            val maskedKey = if (cleanKey.length > 8) "${cleanKey.take(4)}...${cleanKey.takeLast(4)}" else "Invalid Key"
+
+            return@withContext when {
+                msg.contains("quota", ignoreCase = true) -> 
+                    "QUOTA_ERROR: Cuota excedida. Revisa billing en Google Cloud."
+                msg.contains("API key", ignoreCase = true) -> 
+                    "API_KEY_ERROR: Clave inválida ($maskedKey). Verifica local.properties."
+                msg.contains("404", ignoreCase = true) || msg.contains("NOT_FOUND", ignoreCase = true) -> 
+                    "MODEL_ERROR: No se encontró ningún modelo Flash disponible. Asegúrate de que la API está habilitada en el proyecto correcto."
+                else -> 
+                    "ERROR TÉCNICO: $msg"
             }
         }
     }
