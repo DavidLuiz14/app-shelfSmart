@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import com.example.appshelfsmart.data.Product
 import com.example.appshelfsmart.utils.DateUtils
 
+import androidx.compose.foundation.background
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlertsScreen(
@@ -25,107 +27,126 @@ fun AlertsScreen(
     onProductClick: (Product) -> Unit,
     onBack: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Alertas Inteligentes") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Warning, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        if (urgentAlerts.isEmpty() && warningAlerts.isEmpty() && 
-            cautionAlerts.isEmpty() && lowStockAlerts.isEmpty()) {
-            // No alerts
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "No hay alertas",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "Todo está bajo control",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Background Image
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.appshelfsmart.R.drawable.despensa_llena),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+
+        // Semi-transparent overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
+        )
+
+        Scaffold(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text("Alertas Inteligentes") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.Warning, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Urgent alerts (Red)
-                if (urgentAlerts.isNotEmpty()) {
-                    item {
-                        AlertSection(
-                            title = "🔴 Urgente - Caducan HOY",
-                            description = "${urgentAlerts.size} producto(s)",
-                            color = Color(0xFFD32F2F),
-                            products = urgentAlerts,
-                            onProductClick = onProductClick
+        ) { paddingValues ->
+            if (urgentAlerts.isEmpty() && warningAlerts.isEmpty() && 
+                cautionAlerts.isEmpty() && lowStockAlerts.isEmpty()) {
+                // No alerts
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "No hay alertas",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "Todo está bajo control",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-
-                // Warning alerts (Orange)
-                if (warningAlerts.isNotEmpty()) {
-                    item {
-                        AlertSection(
-                            title = "🟠 Próxima - Caducan en 1-3 días",
-                            description = "${warningAlerts.size} producto(s)",
-                            color = Color(0xFFFF9800),
-                            products = warningAlerts,
-                            onProductClick = onProductClick
-                        )
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Urgent alerts (Red)
+                    if (urgentAlerts.isNotEmpty()) {
+                        item {
+                            AlertSection(
+                                title = "🔴 Urgente - Caducan HOY",
+                                description = "${urgentAlerts.size} producto(s)",
+                                color = Color(0xFFD32F2F),
+                                products = urgentAlerts,
+                                onProductClick = onProductClick
+                            )
+                        }
                     }
-                }
 
-                // Caution alerts (Yellow)
-                if (cautionAlerts.isNotEmpty()) {
-                    item {
-                        AlertSection(
-                            title = "🟡 Preventiva - Caducan en 4-7 días",
-                            description = "${cautionAlerts.size} producto(s)",
-                            color = Color(0xFFFFC107),
-                            products = cautionAlerts,
-                            onProductClick = onProductClick
-                        )
+                    // Warning alerts (Orange)
+                    if (warningAlerts.isNotEmpty()) {
+                        item {
+                            AlertSection(
+                                title = "🟠 Próxima - Caducan en 1-3 días",
+                                description = "${warningAlerts.size} producto(s)",
+                                color = Color(0xFFFF9800),
+                                products = warningAlerts,
+                                onProductClick = onProductClick
+                            )
+                        }
                     }
-                }
 
-                // Low stock alerts
-                if (lowStockAlerts.isNotEmpty()) {
-                    item {
-                        AlertSection(
-                            title = "📦 Stock Bajo",
-                            description = "${lowStockAlerts.size} producto(s) con pocas unidades",
-                            color = Color(0xFF2196F3),
-                            products = lowStockAlerts,
-                            onProductClick = onProductClick,
-                            isStockAlert = true
-                        )
+                    // Caution alerts (Yellow)
+                    if (cautionAlerts.isNotEmpty()) {
+                        item {
+                            AlertSection(
+                                title = "🟡 Preventiva - Caducan en 4-7 días",
+                                description = "${cautionAlerts.size} producto(s)",
+                                color = Color(0xFFFFC107),
+                                products = cautionAlerts,
+                                onProductClick = onProductClick
+                            )
+                        }
+                    }
+
+                    // Low stock alerts
+                    if (lowStockAlerts.isNotEmpty()) {
+                        item {
+                            AlertSection(
+                                title = "📦 Stock Bajo",
+                                description = "${lowStockAlerts.size} producto(s) con pocas unidades",
+                                color = Color(0xFF2196F3),
+                                products = lowStockAlerts,
+                                onProductClick = onProductClick,
+                                isStockAlert = true
+                            )
+                        }
                     }
                 }
             }

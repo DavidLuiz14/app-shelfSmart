@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
 import com.example.appshelfsmart.data.Product
 import com.example.appshelfsmart.utils.DateUtils
 import com.example.appshelfsmart.viewmodel.ProductViewModel
@@ -178,154 +179,172 @@ fun InventoryScreen(
         }
     }
 
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onScanClick,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Product")
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Background Image
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.appshelfsmart.R.drawable.despensa_vacia),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+
+        // Semi-transparent overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
+        )
+
+        Scaffold(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = onScanClick,
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Product")
+                }
             }
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Dashboard at the top
-                InventoryDashboard(
-                    totalProducts = totalProducts,
-                    expiringSoonCount = expiringSoonCount,
-                    lowStockCount = lowStockCount
-                )
-                
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        ) { paddingValues ->
+            Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Dashboard at the top
+                    InventoryDashboard(
+                        totalProducts = totalProducts,
+                        expiringSoonCount = expiringSoonCount,
+                        lowStockCount = lowStockCount
+                    )
+                    
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                // Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("Buscar por nombre o marca...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear")
+                    // Search Bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        placeholder = { Text("Buscar por nombre o marca...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                }
                             }
-                        }
-                    },
-                    singleLine = true
-                )
+                        },
+                        singleLine = true
+                    )
 
-                // Expiration Filter Chips
-                androidx.compose.foundation.lazy.LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = expirationFilter == ExpirationFilter.ALL,
-                            onClick = { expirationFilter = ExpirationFilter.ALL },
-                            label = { Text("Todos") }
-                        )
-                    }
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = expirationFilter == ExpirationFilter.EXPIRING_SOON,
-                            onClick = { expirationFilter = ExpirationFilter.EXPIRING_SOON },
-                            label = { Text("Por vencer") }
-                        )
-                    }
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = expirationFilter == ExpirationFilter.EXPIRED,
-                            onClick = { expirationFilter = ExpirationFilter.EXPIRED },
-                            label = { Text("Vencidos") }
-                        )
-                    }
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = expirationFilter == ExpirationFilter.VALID,
-                            onClick = { expirationFilter = ExpirationFilter.VALID },
-                            label = { Text("Vigentes") }
-                        )
-                    }
-                }
-
-                // Sort Options
-                androidx.compose.foundation.lazy.LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = sortOption == SortOption.NEWEST,
-                            onClick = { sortOption = SortOption.NEWEST },
-                            label = { Text("Más reciente") }
-                        )
-                    }
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = sortOption == SortOption.OLDEST,
-                            onClick = { sortOption = SortOption.OLDEST },
-                            label = { Text("Más antiguo") }
-                        )
-                    }
-                    item {
-                        androidx.compose.material3.FilterChip(
-                            selected = sortOption == SortOption.EXPIRING_SOONEST,
-                            onClick = { sortOption = SortOption.EXPIRING_SOONEST },
-                            label = { Text("Próximo a vencer") }
-                        )
-                    }
-                }
-
-                // Category Filter
-                androidx.compose.foundation.lazy.LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(categories) { category ->
-                        androidx.compose.material3.FilterChip(
-                            selected = (category == "Todos" && selectedCategory == null) || category == selectedCategory,
-                            onClick = {
-                                selectedCategory = if (category == "Todos") null else category
-                            },
-                            label = { Text(category) }
-                        )
-                    }
-                }
-
-                if (sortedGroups.isEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    // Expiration Filter Chips
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = if (inventoryItems.isEmpty()) "No items in inventory" else "No items match filters",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (inventoryItems.isEmpty()) {
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = expirationFilter == ExpirationFilter.ALL,
+                                onClick = { expirationFilter = ExpirationFilter.ALL },
+                                label = { Text("Todos") }
+                            )
+                        }
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = expirationFilter == ExpirationFilter.EXPIRING_SOON,
+                                onClick = { expirationFilter = ExpirationFilter.EXPIRING_SOON },
+                                label = { Text("Por vencer") }
+                            )
+                        }
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = expirationFilter == ExpirationFilter.EXPIRED,
+                                onClick = { expirationFilter = ExpirationFilter.EXPIRED },
+                                label = { Text("Vencidos") }
+                            )
+                        }
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = expirationFilter == ExpirationFilter.VALID,
+                                onClick = { expirationFilter = ExpirationFilter.VALID },
+                                label = { Text("Vigentes") }
+                            )
+                        }
+                    }
+
+                    // Sort Options
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = sortOption == SortOption.NEWEST,
+                                onClick = { sortOption = SortOption.NEWEST },
+                                label = { Text("Más reciente") }
+                            )
+                        }
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = sortOption == SortOption.OLDEST,
+                                onClick = { sortOption = SortOption.OLDEST },
+                                label = { Text("Más antiguo") }
+                            )
+                        }
+                        item {
+                            androidx.compose.material3.FilterChip(
+                                selected = sortOption == SortOption.EXPIRING_SOONEST,
+                                onClick = { sortOption = SortOption.EXPIRING_SOONEST },
+                                label = { Text("Próximo a vencer") }
+                            )
+                        }
+                    }
+
+                    // Category Filter
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(categories) { category ->
+                            androidx.compose.material3.FilterChip(
+                                selected = (category == "Todos" && selectedCategory == null) || category == selectedCategory,
+                                onClick = {
+                                    selectedCategory = if (category == "Todos") null else category
+                                },
+                                label = { Text(category) }
+                            )
+                        }
+                    }
+
+                    if (sortedGroups.isEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
-                                text = "Tap + to add a product",
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = if (inventoryItems.isEmpty()) "No items in inventory" else "No items match filters",
+                                style = MaterialTheme.typography.headlineSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            if (inventoryItems.isEmpty()) {
+                                Text(
+                                    text = "Tap + to add a product",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(sortedGroups) { group ->
-                            ProductGroupCard(
-                                productGroup = group,
-                                onView = { selectedGroup = group }
-                            )
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(sortedGroups) { group ->
+                                ProductGroupCard(
+                                    productGroup = group,
+                                    onView = { selectedGroup = group }
+                                )
+                            }
                         }
                     }
                 }

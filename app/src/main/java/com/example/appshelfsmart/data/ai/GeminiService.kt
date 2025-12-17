@@ -35,8 +35,8 @@ class GeminiService(private val apiKey: String) {
                     val prompt = """
                         Analiza la siguiente información nutricional extraída de una etiqueta y proporciona un resumen simple y claro en español.
                         Incluye solo los datos más importantes como calorías, proteínas, carbohidratos, grasas, azúcares y sodio.
-                        Si la información está incompleta, menciona solo lo que esté disponible.
-                        Formato: "Por porción: X calorías, Xg proteínas, Xg carbohidratos, Xg grasas, Xg azúcares, Xmg sodio"
+                        Solo da un texto corto y preciso con palabras simples, que las entienda todo el mundo
+                       
                         
                         Texto extraído:
                         $extractedText
