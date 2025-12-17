@@ -19,6 +19,9 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainMenuScreen(
@@ -29,63 +32,88 @@ fun MainMenuScreen(
     onNavigateToSettings: () -> Unit,
     alertsCount: Int = 0
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("") }, // Empty title for minimalist look or "AppShelfSmart"
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.Settings,
-                            contentDescription = "Configuraciones"
-                        )
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Background Image
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.appshelfsmart.R.drawable.despensa_llena),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+        
+        // Semi-transparent overlay
+        Box(
             modifier = Modifier
-                .padding(paddingValues)
                 .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "AppShelfSmart",
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.padding(bottom = 32.dp)
-            )
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
+        )
 
-            MenuButton(text = "Llegué del súper (Registro)", onClick = onNavigateToRegistration)
-            MenuButton(text = "Inventario", onClick = onNavigateToInventory)
-            
-            // Alerts button with badge
-            Button(
-                onClick = onNavigateToAlerts,
+        Scaffold(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { 
+                        Text(
+                            "ShelfSmart",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        ) 
+                    },
+                    actions = {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Settings,
+                                contentDescription = "Configuraciones"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                )
+            }
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                BadgedBox(
-                    badge = {
-                        if (alertsCount > 0) {
-                            Badge {
-                                Text(text = alertsCount.toString())
+                // Title removed from here
+
+                MenuButton(text = "🛒 Llegué del súper", onClick = onNavigateToRegistration)
+                MenuButton(text = "🥫 Inventario", onClick = onNavigateToInventory)
+                
+                // Alerts button with badge
+                Button(
+                    onClick = onNavigateToAlerts,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    BadgedBox(
+                        badge = {
+                            if (alertsCount > 0) {
+                                Badge {
+                                    Text(text = alertsCount.toString())
+                                }
                             }
                         }
+                    ) {
+                        Text(text = "🔔 Alertas", style = MaterialTheme.typography.titleMedium)
                     }
-                ) {
-                    Text(text = "🔔 Alertas", style = MaterialTheme.typography.titleMedium)
                 }
+                
+                MenuButton(text = "🍳 ¿Qué puedo cocinar?", onClick = onNavigateToRecipes)
+                // Settings button removed
             }
-            
-            MenuButton(text = "🍳 ¿Qué puedo cocinar?", onClick = onNavigateToRecipes)
-            // Settings button removed
         }
     }
 }
+
 
 @Composable
 fun MenuButton(text: String, onClick: () -> Unit) {
@@ -93,7 +121,10 @@ fun MenuButton(text: String, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.secondary
+        )
     ) {
         Text(text = text, style = MaterialTheme.typography.titleMedium)
     }

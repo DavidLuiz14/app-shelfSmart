@@ -1,0 +1,16 @@
+Index: app/src/main/java/com/example/appshelfsmart/MainActivity.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.example.appshelfsmart\r\n\r\nimport android.os.Bundle\r\nimport androidx.activity.ComponentActivity\r\nimport androidx.activity.compose.setContent\r\nimport androidx.activity.enableEdgeToEdge\r\nimport androidx.compose.foundation.layout.fillMaxSize\r\nimport androidx.compose.foundation.layout.padding\r\nimport androidx.compose.material3.Scaffold\r\nimport androidx.compose.material3.Text\r\nimport androidx.compose.runtime.Composable\r\nimport androidx.compose.ui.Modifier\r\nimport androidx.compose.ui.tooling.preview.Preview\r\nimport com.example.appshelfsmart.ui.theme.AppShelfSmartTheme\r\n\r\nclass MainActivity : ComponentActivity() {\r\n    override fun onCreate(savedInstanceState: Bundle?) {\r\n        super.onCreate(savedInstanceState)\r\n        enableEdgeToEdge()\r\n        setContent {\r\n            AppShelfSmartTheme {\r\n                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->\r\n                    Greeting(\r\n                        name = \"Apple\",\r\n                        modifier = Modifier.padding(innerPadding)\r\n\r\n\r\n\r\n                    )\r\n                }\r\n            }\r\n        }\r\n    }\r\n}\r\n\r\n@Composable\r\nfun Greeting(name: String, modifier: Modifier = Modifier) {\r\n    Text(\r\n        text = \"Hola $name!\",\r\n        modifier = modifier\r\n    )\r\n}\r\n\r\nfun Hola(){\r\n    \r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/appshelfsmart/MainActivity.kt b/app/src/main/java/com/example/appshelfsmart/MainActivity.kt
+--- a/app/src/main/java/com/example/appshelfsmart/MainActivity.kt	(revision 7d3da3bc71ce9784e591c495de0b52ad4b50a93f)
++++ b/app/src/main/java/com/example/appshelfsmart/MainActivity.kt	(date 1764363216109)
+@@ -44,3 +44,5 @@
+ fun Hola(){
+     
+ }
++
++
