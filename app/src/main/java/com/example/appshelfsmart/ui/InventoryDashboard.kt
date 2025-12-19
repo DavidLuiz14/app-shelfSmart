@@ -42,7 +42,7 @@ fun InventoryDashboard(
             .padding(16.dp)
     ) {
         Text(
-            text = "Inventory Overview",
+            text = "Resumen del Inventario",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -64,7 +64,7 @@ fun InventoryDashboard(
 
             // Expiring Soon Card
             DashboardCard(
-                title = "Expiring",
+                title = "Por vencer",
                 value = expiringSoonCount.toString(),
                 icon = Icons.Default.DateRange,
                 color = if (expiringSoonCount > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
@@ -74,7 +74,7 @@ fun InventoryDashboard(
 
             // Low Stock Card
             DashboardCard(
-                title = "Low Stock",
+                title = "Poco Stock",
                 value = lowStockCount.toString(),
                 icon = Icons.Default.Warning,
                 color = if (lowStockCount > 0) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,

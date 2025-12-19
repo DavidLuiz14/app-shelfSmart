@@ -40,7 +40,7 @@ fun AlertsScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.80f))
         )
 
         Scaffold(
@@ -167,7 +167,7 @@ fun AlertSection(
         // Section header
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = color.copy(alpha = 0.1f)
+                containerColor = color.copy(alpha = 0.10f)
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -177,12 +177,14 @@ fun AlertSection(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = color
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = color.copy(alpha = 10f)
                 )
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = color.copy(alpha = 0.8f)
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    color = color.copy(alpha = 10f)
                 )
             }
         }

@@ -15,6 +15,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -74,6 +78,7 @@ fun InventoryScreen(
     var searchQuery by remember { mutableStateOf("") }
     var expirationFilter by remember { mutableStateOf(ExpirationFilter.ALL) }
     var sortOption by remember { mutableStateOf(SortOption.NEWEST) }
+    var isFiltersExpanded by remember { mutableStateOf(false) }
 
     val categories = listOf(
         "Todos",
@@ -217,101 +222,157 @@ fun InventoryScreen(
                     
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
-                    // Search Bar
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                    // Filter Section Card
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        placeholder = { Text("Buscar por nombre o marca...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            // Header (Always visible)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isFiltersExpanded = !isFiltersExpanded }
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = "Filtros",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Filtros y Búsqueda",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (isFiltersExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (isFiltersExpanded) "Colapsar" else "Expandir",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Collapsible Content
+                            AnimatedVisibility(visible = isFiltersExpanded) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    HorizontalDivider()
+                                    
+                                    // Search Bar
+                                    OutlinedTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        modifier = Modifier
+                                            .fillMaxWidth(),
+                                        placeholder = { Text("Buscar por nombre o marca...") },
+                                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                                        trailingIcon = {
+                                            if (searchQuery.isNotBlank()) {
+                                                IconButton(onClick = { searchQuery = "" }) {
+                                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                                }
+                                            }
+                                        },
+                                        singleLine = true
+                                    )
+                
+                                    // Expiration Filter Chips
+                                    Text("Filtrar por caducidad:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 8.dp))
+                                    androidx.compose.foundation.lazy.LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = expirationFilter == ExpirationFilter.ALL,
+                                                onClick = { expirationFilter = ExpirationFilter.ALL },
+                                                label = { Text("Todos") }
+                                            )
+                                        }
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = expirationFilter == ExpirationFilter.EXPIRING_SOON,
+                                                onClick = { expirationFilter = ExpirationFilter.EXPIRING_SOON },
+                                                label = { Text("Por vencer") }
+                                            )
+                                        }
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = expirationFilter == ExpirationFilter.EXPIRED,
+                                                onClick = { expirationFilter = ExpirationFilter.EXPIRED },
+                                                label = { Text("Vencidos") }
+                                            )
+                                        }
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = expirationFilter == ExpirationFilter.VALID,
+                                                onClick = { expirationFilter = ExpirationFilter.VALID },
+                                                label = { Text("Vigentes") }
+                                            )
+                                        }
+                                    }
+                
+                                    // Sort Options
+                                    Text("Ordenar por:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 8.dp))
+                                    androidx.compose.foundation.lazy.LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = sortOption == SortOption.NEWEST,
+                                                onClick = { sortOption = SortOption.NEWEST },
+                                                label = { Text("Más reciente") }
+                                            )
+                                        }
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = sortOption == SortOption.OLDEST,
+                                                onClick = { sortOption = SortOption.OLDEST },
+                                                label = { Text("Más antiguo") }
+                                            )
+                                        }
+                                        item {
+                                            androidx.compose.material3.FilterChip(
+                                                selected = sortOption == SortOption.EXPIRING_SOONEST,
+                                                onClick = { sortOption = SortOption.EXPIRING_SOONEST },
+                                                label = { Text("Próximo a vencer") }
+                                            )
+                                        }
+                                    }
+                
+                                    // Category Filter
+                                    Text("Categoría:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 8.dp))
+                                    androidx.compose.foundation.lazy.LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(categories) { category ->
+                                            androidx.compose.material3.FilterChip(
+                                                selected = (category == "Todos" && selectedCategory == null) || category == selectedCategory,
+                                                onClick = {
+                                                    selectedCategory = if (category == "Todos") null else category
+                                                },
+                                                label = { Text(category) }
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                        },
-                        singleLine = true
-                    )
-
-                    // Expiration Filter Chips
-                    androidx.compose.foundation.lazy.LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = expirationFilter == ExpirationFilter.ALL,
-                                onClick = { expirationFilter = ExpirationFilter.ALL },
-                                label = { Text("Todos") }
-                            )
-                        }
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = expirationFilter == ExpirationFilter.EXPIRING_SOON,
-                                onClick = { expirationFilter = ExpirationFilter.EXPIRING_SOON },
-                                label = { Text("Por vencer") }
-                            )
-                        }
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = expirationFilter == ExpirationFilter.EXPIRED,
-                                onClick = { expirationFilter = ExpirationFilter.EXPIRED },
-                                label = { Text("Vencidos") }
-                            )
-                        }
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = expirationFilter == ExpirationFilter.VALID,
-                                onClick = { expirationFilter = ExpirationFilter.VALID },
-                                label = { Text("Vigentes") }
-                            )
-                        }
-                    }
-
-                    // Sort Options
-                    androidx.compose.foundation.lazy.LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = sortOption == SortOption.NEWEST,
-                                onClick = { sortOption = SortOption.NEWEST },
-                                label = { Text("Más reciente") }
-                            )
-                        }
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = sortOption == SortOption.OLDEST,
-                                onClick = { sortOption = SortOption.OLDEST },
-                                label = { Text("Más antiguo") }
-                            )
-                        }
-                        item {
-                            androidx.compose.material3.FilterChip(
-                                selected = sortOption == SortOption.EXPIRING_SOONEST,
-                                onClick = { sortOption = SortOption.EXPIRING_SOONEST },
-                                label = { Text("Próximo a vencer") }
-                            )
-                        }
-                    }
-
-                    // Category Filter
-                    androidx.compose.foundation.lazy.LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(categories) { category ->
-                            androidx.compose.material3.FilterChip(
-                                selected = (category == "Todos" && selectedCategory == null) || category == selectedCategory,
-                                onClick = {
-                                    selectedCategory = if (category == "Todos") null else category
-                                },
-                                label = { Text(category) }
-                            )
                         }
                     }
 
@@ -322,13 +383,15 @@ fun InventoryScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = if (inventoryItems.isEmpty()) "No items in inventory" else "No items match filters",
+                                text = if (inventoryItems.isEmpty()) "No hay productos en el inventario" else "No hay productos que coincidan con los filtros",
                                 style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                             if (inventoryItems.isEmpty()) {
                                 Text(
-                                    text = "Tap + to add a product",
+                                    text = "Toca + para agregar un producto",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -377,9 +440,9 @@ fun ProductGroupCard(
     }
     
     val statusText = when {
-        anyExpired -> "At least 1 Expired"
-        anyExpiringSoon -> "Expiring Soon: $earliestExpiration"
-        else -> "Expires: $earliestExpiration"
+        anyExpired -> "Al menos 1 Vencido"
+        anyExpiringSoon -> "Vence pronto: $earliestExpiration"
+        else -> "Vence: $earliestExpiration"
     }
 
     Card(
@@ -403,10 +466,10 @@ fun ProductGroupCard(
                 }
             }
             if (representative.brand.isNotBlank()) {
-                Text(text = "Brand: ${representative.brand}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "Marca: ${representative.brand}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                text = "Total Units: $totalUnits", 
+                text = "Unidades Totales: $totalUnits", 
                 style = MaterialTheme.typography.bodyMedium, 
                 color = MaterialTheme.colorScheme.primary
             )
@@ -482,20 +545,22 @@ fun ProductDetailDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
-                    if (representative.brand.isNotBlank()) Text("🏷️ Brand: ${representative.brand}")
-                    if (representative.category.isNotBlank()) Text("📂 Category: ${representative.category}")
-                    Text("📦 Quantity per Unit: ${representative.quantityValue ?: "N/A"} ${representative.quantityUnit ?: ""}")
+                    if (representative.brand.isNotBlank()) Text("🏷️ Marca: ${representative.brand}")
+                    if (representative.category.isNotBlank()) Text("📂 Categoría: ${representative.category}")
+                    Text("📦 Cantidad por Unidad: ${representative.quantityValue ?: "N/A"} ${representative.quantityUnit ?: ""}")
                     Text(
-                         text = "🔢 Total Units in Stock: $totalUnits",
+                         text = "🔢 Unidades Totales en Stock: $totalUnits",
                          style = MaterialTheme.typography.titleSmall,
                          color = MaterialTheme.colorScheme.primary
                     )
-                    Text("🔖 Barcode: ${representative.barcode}")
+                    Text("🔖 Código de Barras: ${representative.barcode}")
                 }
                 
                 HorizontalDivider()
                 
-                Text("Individual Items:", style = MaterialTheme.typography.titleMedium)
+                HorizontalDivider()
+                
+                Text("Productos individuales:", style = MaterialTheme.typography.titleMedium)
                 
                 // List of items
                 sortedItems.forEach { product ->
@@ -509,7 +574,7 @@ fun ProductDetailDialog(
                 if (!representative.nutritionalInfoSimplified.isNullOrBlank()) {
                      HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                      Text("🥗 Info Nutricional (General):", style = MaterialTheme.typography.labelLarge)
-                     Text(representative.nutritionalInfoSimplified, style = MaterialTheme.typography.bodySmall)
+                     Text(representative.nutritionalInfoSimplified, style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }
@@ -560,13 +625,13 @@ fun ProductUnitRow(
                     onClick = { onConsumed(product) },
                     colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF4CAF50))
                 ) {
-                    Text("Check")
+                    Text("Consumir")
                 }
                 androidx.compose.material3.TextButton(
                     onClick = { onWasted(product) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Trash")
+                    Text("Desechar")
                 }
             }
         }
