@@ -69,88 +69,95 @@ fun RecipeDetailScreen(
                     contentScale = ContentScale.Crop
                 )
                 
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // Category and Area
-                    Text(
-                        text = "${recipe.category} • ${recipe.area}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Ingredients Section
-                    Text(
-                        text = "Ingredientes",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    recipe.ingredients.forEach { ingredient ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                         ) {
-                            Icon(
-                                imageVector = if (ingredient.available) 
-                                    Icons.Default.CheckCircle 
-                                else 
-                                    Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = if (ingredient.available) 
-                                    MaterialTheme.colorScheme.onSurface 
-                                else 
-                                    MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            
-                            Spacer(modifier = Modifier.width(8.dp))
-                            
-                            Text(
-                                text = "${ingredient.measure} ${ingredient.name}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (ingredient.available) 
-                                    MaterialTheme.colorScheme.onSurface 
-                                else 
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                // Category and Area
+                                Text(
+                                    text = "${recipe.category} • ${recipe.area}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Ingredients Section
+                                Text(
+                                    text = "Ingredientes",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                recipe.ingredients.forEach { ingredient ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (ingredient.available)
+                                                Icons.Default.CheckCircle
+                                            else
+                                                Icons.Default.Warning,
+                                            contentDescription = null,
+                                            tint = if (ingredient.available)
+                                                MaterialTheme.colorScheme.onSurface
+                                            else
+                                                MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Text(
+                                            text = "${ingredient.measure} ${ingredient.name}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (ingredient.available)
+                                                MaterialTheme.colorScheme.onSurface
+                                            else
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // Instructions Section
+                                Text(
+                                    text = "Instrucciones",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = recipe.instructions,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                
+                                // YouTube Link (if available)
+                                if (!recipe.youtubeUrl.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    
+                                    Button(
+                                        onClick = { /* TODO: Open YouTube link */ },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Ver video en YouTube")
+                                    }
+                                }
+                            }
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Instructions Section
-                    Text(
-                        text = "Instrucciones",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = recipe.instructions,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    
-                    // YouTube Link (if available)
-                    if (!recipe.youtubeUrl.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        Button(
-                            onClick = { /* TODO: Open YouTube link */ },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Ver video en YouTube")
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
             }
         }
     }

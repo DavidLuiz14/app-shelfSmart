@@ -88,7 +88,7 @@ fun MainMenuScreen(
                 Button(
                     onClick = onNavigateToAlerts,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxWidth(0.60f)
                         .padding(vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
@@ -103,7 +103,11 @@ fun MainMenuScreen(
                             }
                         }
                     ) {
-                        Text(text = "🔔 Alertas", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "🔔 Alertas", 
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(end = 16.dp)
+                        )
                     }
                 }
                 
@@ -120,7 +124,7 @@ fun MenuButton(text: String, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxWidth(0.60f)
             .padding(vertical = 8.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.secondary
